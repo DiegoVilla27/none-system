@@ -12,6 +12,12 @@ const envSchema = z.object({
   UPLOAD_DIR: z.string().default('uploads'),
   GEMINI_API_KEY: z.string().min(1, 'GEMINI_API_KEY is required'),
   GEMINI_MODEL: z.string().default('gemini-3.5-flash'),
+
+  // WhatsApp Meta Cloud API Configuration
+  WHATSAPP_VERIFY_TOKEN: z.string().default('none_system_verify_token'),
+  WHATSAPP_API_TOKEN: z.string().default(''),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().default(''),
+  WHATSAPP_API_VERSION: z.string().default('v21.0'),
 });
 
 const parseEnv = () => {

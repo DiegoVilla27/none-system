@@ -8,7 +8,8 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "test:e2e": "tsx scripts/e2e-test.ts"
+    "test:e2e": "tsx scripts/e2e-test.ts",
+    "test:whatsapp": "tsx scripts/whatsapp-test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.26.0",

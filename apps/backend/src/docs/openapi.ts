@@ -39,6 +39,10 @@ Procesamiento automatizado de **Facturas Electrónicas Comerciales** y **Comprob
       name: 'Sistema',
       description: 'Monitoreo de estado y healthcheck.',
     },
+    {
+      name: 'WhatsApp Cloud API',
+      description: 'Webhook oficial de Meta para recepción automática de comprobantes contables y respuestas automatizadas.',
+    },
   ],
   paths: {
     '/health': {
@@ -430,6 +434,80 @@ El usuario o frontend puede enviar el campo **\`tipo\`**:
                         summary: { $ref: '#/components/schemas/MonthlySummary' },
                       },
                     },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/v1/whatsapp/webhook': {
+      get: {
+        tags: ['WhatsApp Cloud API'],
+        summary: 'Verificación del Webhook de Meta (Handshake)',
+        description: 'Endpoint consumido por Meta para verificar la suscripción del Webhook usando el Verify Token.',
+        parameters: [
+          {
+            name: 'hub.mode',
+            in: 'query',
+            required: true,
+            schema: { type: 'string', example: 'subscribe' },
+          },
+          {
+            name: 'hub.verify_token',
+            in: 'query',
+            required: true,
+            schema: { type: 'string', example: 'none_system_verify_token' },
+          },
+          {
+            name: 'hub.challenge',
+            in: 'query',
+            required: true,
+            schema: { type: 'string', example: '1158201444' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Handshake exitoso. Retorna el valor de hub.challenge.',
+            content: {
+              'text/plain': {
+                schema: { type: 'string', example: '1158201444' },
+              },
+            },
+          },
+          '403': {
+            description: 'Verify Token no coincide.',
+          },
+        },
+      },
+      post: {
+        tags: ['WhatsApp Cloud API'],
+        summary: 'Recepción de eventos de WhatsApp (Fotos, PDFs, Mensajes)',
+        description: 'Recibe eventos en tiempo real de Meta cuando un usuario envía un comprobante o mensaje por chat.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  object: { type: 'string', example: 'whatsapp_business_account' },
+                  entry: { type: 'array', items: { type: 'object' } },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Evento recibido y procesado asíncronamente.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    status: { type: 'string', example: 'EVENT_RECEIVED' },
                   },
                 },
               },

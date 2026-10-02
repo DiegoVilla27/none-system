@@ -16,6 +16,9 @@ import { createExpenseRouter } from './modules/expenses/expenses.routes.js';
 import { SummaryService } from './modules/summaries/services/summary.service.js';
 import { SummaryController } from './modules/summaries/controllers/summary.controller.js';
 import { createSummaryRouter } from './modules/summaries/summaries.routes.js';
+import { WhatsAppService } from './modules/whatsapp/whatsapp.service.js';
+import { WhatsAppController } from './modules/whatsapp/whatsapp.controller.js';
+import { createWhatsAppRouter } from './modules/whatsapp/whatsapp.routes.js';
 import swaggerUi from 'swagger-ui-express';
 import { openApiSpec } from './docs/openapi.js';
 
@@ -43,6 +46,14 @@ export const createApp = (): { app: Express; expenseRepo: InMemoryExpenseReposit
   const summaryService = new SummaryService(expenseRepository);
   const summaryController = new SummaryController(summaryService);
 
+  const whatsAppService = new WhatsAppService(
+    ocrExtractor,
+    storageService,
+    expenseRepository,
+    summaryService
+  );
+  const whatsAppController = new WhatsAppController(whatsAppService);
+
   // Healthcheck endpoint
   app.get('/health', (_req: Request, res: Response) => {
     res.json({
@@ -57,6 +68,7 @@ export const createApp = (): { app: Express; expenseRepo: InMemoryExpenseReposit
   const apiRouter = express.Router();
   apiRouter.use('/expenses', createExpenseRouter(expenseController));
   apiRouter.use('/summaries', createSummaryRouter(summaryController));
+  apiRouter.use('/whatsapp', createWhatsAppRouter(whatsAppController));
 
   app.use(env.API_PREFIX, apiRouter);
 
