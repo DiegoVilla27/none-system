@@ -76,6 +76,9 @@ export class SummaryService {
       return '█'.repeat(filled) + '░'.repeat(empty);
     };
 
+    const formatCOP = (val: number): string =>
+      '$' + Math.round(val).toLocaleString('es-CO') + ' COP';
+
     const categoryEmojis: Record<string, string> = {
       Supermercado: '🛒',
       Restauración: '🍽️',
@@ -84,6 +87,7 @@ export class SummaryService {
       Tecnología: '💻',
       'Salud y Bienestar': '💊',
       'Ocio y Viajes': '🎬',
+      'Transferencias y Finanzas': '🏦',
       Otros: '📦',
     };
 
@@ -91,10 +95,10 @@ export class SummaryService {
 
     if (summary.presupuesto) {
       const bar = renderProgressBar(summary.porcentajePresupuesto || 0, 15);
-      text += `*Total gastado:* $${summary.totalGastado.toFixed(2)} de $${summary.presupuesto.toFixed(2)}\n`;
+      text += `*Total gastado:* ${formatCOP(summary.totalGastado)} de ${formatCOP(summary.presupuesto)}\n`;
       text += `[${bar}] ${summary.porcentajePresupuesto}%\n\n`;
     } else {
-      text += `*Total gastado:* $${summary.totalGastado.toFixed(2)} (${summary.numGastos} tickets)\n\n`;
+      text += `*Total gastado:* ${formatCOP(summary.totalGastado)} (${summary.numGastos} registros)\n\n`;
     }
 
     if (summary.categorias.length === 0) {
@@ -104,12 +108,12 @@ export class SummaryService {
       for (const cat of summary.categorias) {
         const emoji = categoryEmojis[cat.categoria] || '📌';
         const bar = renderProgressBar(cat.porcentaje, 8);
-        const paddedCat = cat.categoria.padEnd(16, ' ');
-        text += `${emoji} ${paddedCat}: $${cat.total.toFixed(2)} [${bar}] ${cat.porcentaje}%\n`;
+        const paddedCat = cat.categoria.padEnd(20, ' ');
+        text += `${emoji} ${paddedCat}: ${formatCOP(cat.total)} [${bar}] ${cat.porcentaje}%\n`;
       }
     }
 
-    text += `\n📄 *Responde "DETALLE" para ver la lista de tickets o "EXCEL" para exportar.*`;
+    text += `\n📄 *Responde "DETALLE" para ver la lista de comprobantes o "EXCEL" para exportar.*`;
     return text;
   }
 }

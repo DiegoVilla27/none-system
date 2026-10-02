@@ -19,6 +19,9 @@ export class InMemoryExpenseRepository implements IExpenseRepository {
     let list = Array.from(this.expenses.values());
 
     if (filter) {
+      if (filter.tipoDocumento) {
+        list = list.filter((e) => e.tipoDocumento === filter.tipoDocumento);
+      }
       if (filter.categoria) {
         list = list.filter((e) => e.categoria === filter.categoria);
       }

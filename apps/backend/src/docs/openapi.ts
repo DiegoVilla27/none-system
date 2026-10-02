@@ -3,19 +3,21 @@ import { EXPENSE_CATEGORIES } from '../modules/expenses/entities/expense.entity.
 export const openApiSpec = {
   openapi: '3.0.3',
   info: {
-    title: 'none-system Financial & OCR API',
-    version: '1.0.0',
+    title: 'none-system Financial & OCR API (Colombia COP)',
+    version: '1.1.0',
     description: `
-API REST de **none-system** para el control financiero, extracción automatizada de tickets con IA (**Gemini Flash**) y generación de resúmenes analíticos para WhatsApp y Dashboard Web.
+API REST de **none-system** para gestión contable y financiera inteligente en **Colombia**.
+Procesamiento automatizado de **Facturas Electrónicas Comerciales** y **Comprobantes Bancarios / Consignaciones** con IA (**Gemini Flash**).
 
 ### Características Clave:
-- ⚡ **Extracción Ultrarrápida**: Procesamiento de tickets y facturas en menos de 2 segundos.
-- 🤖 **IA Multimodal Nativa**: Identificación de comercio, fecha, desglose de impuestos, moneda y categorías.
-- 📱 **Integración para WhatsApp**: Generación instantánea de resúmenes mensuales con barras de progreso y emojis.
-- 🏛️ **Arquitectura Modular & SOLID**: Totalmente tipado con TypeScript y validado con Zod.
+- 🇨🇴 **Adaptado 100% a Colombia**: Moneda siempre en **Pesos Colombianos (COP)**, formato de miles/decimales y validación de NIT.
+- 🧾 **Modo Factura**: Extracción especializada de facturas de venta (Alkomprar, Éxito, D1, etc.), NIT, desglose de IVA (19%/5%) y artículos.
+- 🏦 **Modo Transferencia / Consignación**: Extracción especializada de comprobantes bancarios (Bancolombia, Wompi, Nequi, Daviplata, Efecty), convenios/beneficiarios y referencias de recaudo.
+- ⚡ **Rápido y Económico**: Procesamiento con \`gemini-3.5-flash\` en ~1.2 segundos sin errores de congestión.
+- 📱 **Resúmenes para WhatsApp**: Generación mensual de mensajes con barras de progreso Unicode y formato de moneda COP ($).
     `,
     contact: {
-      name: 'Equipo none-system',
+      name: 'Equipo none-system Colombia',
     },
   },
   servers: [
@@ -27,11 +29,11 @@ API REST de **none-system** para el control financiero, extracción automatizada
   tags: [
     {
       name: 'Gastos & OCR',
-      description: 'Escaneo de tickets con IA, listado, consulta y actualización de gastos contables.',
+      description: 'Escaneo de facturas y transferencias bancarias con IA, consulta y actualización de gastos.',
     },
     {
       name: 'Resúmenes & Analítica',
-      description: 'Cálculo de métricas mensuales y formato para mensajes de WhatsApp.',
+      description: 'Cálculo de métricas mensuales y formato para mensajes de WhatsApp en Pesos Colombianos (COP).',
     },
     {
       name: 'Sistema',
@@ -55,7 +57,7 @@ API REST de **none-system** para el control financiero, extracción automatizada
                     status: { type: 'string', example: 'ok' },
                     timestamp: { type: 'string', example: '2026-10-02T16:20:00.000Z' },
                     service: { type: 'string', example: '@none-system/backend' },
-                    version: { type: 'string', example: '1.0.0' },
+                    version: { type: 'string', example: '1.1.0' },
                   },
                 },
               },
@@ -68,20 +70,15 @@ API REST de **none-system** para el control financiero, extracción automatizada
     '/api/v1/expenses/scan': {
       post: {
         tags: ['Gastos & OCR'],
-        summary: 'Escanear ticket / factura con IA (Gemini Flash)',
+        summary: 'Escanear Factura o Transferencia Bancaria con IA',
         description: `
-Sube una imagen (JPEG, PNG, WEBP) o un documento PDF de un ticket o factura de compra.
-El motor de IA extrae automáticamente:
-1. Nombre del comercio o proveedor
-2. CIF/NIF (si es visible)
-3. Fecha de emisión (YYYY-MM-DD)
-4. Base imponible e impuestos (IVA)
-5. Total pagado y moneda (EUR, USD, etc.)
-6. Categoría sugerida (Supermercado, Restauración, etc.)
-7. Desglose de artículos comprados
-8. Nivel de confianza ('alta', 'media', 'baja')
+Sube una imagen (JPEG, PNG, WEBP) o PDF de un documento financiero en Colombia.
 
-Guarda la imagen en el almacenamiento y crea un registro de gasto con estado 'confirmado' (si la confianza es alta) o 'borrador' (si requiere revisión).
+### Selección de Tipo de Documento:
+El usuario o frontend puede enviar el campo **\`tipo\`**:
+- **\`factura\`**: Para facturas de venta comerciales (Alkomprar, Éxito, D1, Falabella). Busca NIT, número de factura electrónica, subtotal, IVA desglosado y líneas de artículos.
+- **\`transferencia\`**: Para consignaciones, recibos de corresponsal bancario (Bancolombia, Wompi, Efecty), transferencias Nequi/Daviplata o comprobantes de pago. Asigna el gasto al **Beneficiario/Convenio**, extrae el banco/pasarela, número de aprobación/referencia y omite IVA.
+- **\`auto\`**: (Por defecto) La IA determina automáticamente si es factura o comprobante bancario.
         `,
         requestBody: {
           required: true,
@@ -94,7 +91,13 @@ Guarda la imagen en el almacenamiento y crea un registro de gasto con estado 'co
                   file: {
                     type: 'string',
                     format: 'binary',
-                    description: 'Foto del ticket en formato JPG, PNG, WEBP o PDF (Máximo 10MB). También se acepta con el nombre de campo "ticket".',
+                    description: 'Archivo de imagen o PDF (JPG, PNG, WEBP, PDF hasta 10MB). También aceptado como "ticket".',
+                  },
+                  tipo: {
+                    type: 'string',
+                    enum: ['factura', 'transferencia', 'auto'],
+                    default: 'auto',
+                    description: 'Tipo de documento a escanear para activar el prompt especializado.',
                   },
                 },
               },
@@ -103,14 +106,14 @@ Guarda la imagen en el almacenamiento y crea un registro de gasto con estado 'co
         },
         responses: {
           '201': {
-            description: 'Ticket procesado y guardado con éxito',
+            description: 'Documento procesado y guardado con éxito en COP',
             content: {
               'application/json': {
                 schema: {
                   type: 'object',
                   properties: {
                     success: { type: 'boolean', example: true },
-                    message: { type: 'string', example: 'Ticket escaneado y procesado con éxito' },
+                    message: { type: 'string', example: 'Documento (transferencia) escaneado y procesado con éxito' },
                     data: { $ref: '#/components/schemas/Expense' },
                   },
                 },
@@ -126,7 +129,7 @@ Guarda la imagen en el almacenamiento y crea un registro de gasto con estado 'co
             },
           },
           '502': {
-            description: 'Fallo al comunicarse con el proveedor de IA',
+            description: 'Error con la API de IA',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },
@@ -140,51 +143,59 @@ Guarda la imagen en el almacenamiento y crea un registro de gasto con estado 'co
     '/api/v1/expenses': {
       get: {
         tags: ['Gastos & OCR'],
-        summary: 'Listar gastos registrados con filtros',
-        description: 'Obtiene el listado de gastos filtrados opcionalmente por año, mes, categoría, estado o comercio.',
+        summary: 'Listar gastos registrados en Colombia (COP)',
+        description: 'Obtiene el listado de gastos filtrados por tipo de documento, año, mes, categoría o comercio.',
         parameters: [
+          {
+            name: 'tipoDocumento',
+            in: 'query',
+            description: 'Filtrar por tipo de documento',
+            required: false,
+            schema: {
+              type: 'string',
+              enum: ['factura', 'transferencia'],
+            },
+          },
           {
             name: 'year',
             in: 'query',
-            description: 'Año a filtrar en formato 4 dígitos (ej: 2026)',
+            description: 'Año a filtrar (ej: 2026)',
             required: false,
             schema: { type: 'string', example: '2026' },
           },
           {
             name: 'month',
             in: 'query',
-            description: 'Mes a filtrar (1 a 12 o con 2 dígitos, ej: 03)',
+            description: 'Mes a filtrar (1 a 12)',
             required: false,
-            schema: { type: 'string', example: '3' },
+            schema: { type: 'string', example: '9' },
           },
           {
             name: 'categoria',
             in: 'query',
-            description: 'Filtrar por categoría específica',
+            description: 'Filtrar por categoría',
             required: false,
             schema: {
               type: 'string',
               enum: [...EXPENSE_CATEGORIES],
-              example: 'Supermercado',
             },
           },
           {
             name: 'estado',
             in: 'query',
-            description: 'Filtrar por estado del gasto',
+            description: 'Filtrar por estado',
             required: false,
             schema: {
               type: 'string',
               enum: ['borrador', 'confirmado'],
-              example: 'confirmado',
             },
           },
           {
             name: 'comercio',
             in: 'query',
-            description: 'Búsqueda por nombre de comercio (coincidencia parcial)',
+            description: 'Búsqueda por nombre de comercio o beneficiario',
             required: false,
-            schema: { type: 'string', example: 'Mercadona' },
+            schema: { type: 'string', example: 'Funeraria San Vicente' },
           },
         ],
         responses: {
@@ -203,7 +214,7 @@ Guarda la imagen en el almacenamiento y crea un registro de gasto con estado 'co
                     meta: {
                       type: 'object',
                       properties: {
-                        total: { type: 'integer', example: 1 },
+                        total: { type: 'integer', example: 2 },
                       },
                     },
                   },
@@ -219,14 +230,14 @@ Guarda la imagen en el almacenamiento y crea un registro de gasto con estado 'co
       get: {
         tags: ['Gastos & OCR'],
         summary: 'Obtener detalle de un gasto por ID',
-        description: 'Retorna toda la información extraída y el enlace de la imagen del ticket.',
+        description: 'Retorna la información contable completa del gasto en COP y el enlace a la imagen.',
         parameters: [
           {
             name: 'id',
             in: 'path',
             required: true,
-            description: 'Identificador único del gasto (UUID)',
-            schema: { type: 'string', example: '3ecb803d-91ec-479a-9ff9-17e6f56e2df5' },
+            description: 'UUID del gasto',
+            schema: { type: 'string' },
           },
         ],
         responses: {
@@ -257,14 +268,14 @@ Guarda la imagen en el almacenamiento y crea un registro de gasto con estado 'co
       put: {
         tags: ['Gastos & OCR'],
         summary: 'Actualizar o confirmar datos de un gasto',
-        description: 'Permite editar cualquier campo del ticket (ideal para la pantalla de verificación del frontend o correcciones manuales).',
+        description: 'Permite editar cualquier campo del registro (comercio, NIT, montos en COP, categoría, referencia).',
         parameters: [
           {
             name: 'id',
             in: 'path',
             required: true,
-            description: 'Identificador único del gasto (UUID)',
-            schema: { type: 'string', example: '3ecb803d-91ec-479a-9ff9-17e6f56e2df5' },
+            description: 'UUID del gasto',
+            schema: { type: 'string' },
           },
         ],
         requestBody: {
@@ -277,7 +288,7 @@ Guarda la imagen en el almacenamiento y crea un registro de gasto con estado 'co
         },
         responses: {
           '200': {
-            description: 'Gasto actualizado correctamente',
+            description: 'Gasto actualizado con éxito',
             content: {
               'application/json': {
                 schema: {
@@ -291,35 +302,19 @@ Guarda la imagen en el almacenamiento y crea un registro de gasto con estado 'co
               },
             },
           },
-          '400': {
-            description: 'Datos inválidos en el cuerpo de la petición',
-            content: {
-              'application/json': {
-                schema: { $ref: '#/components/schemas/ErrorResponse' },
-              },
-            },
-          },
-          '404': {
-            description: 'Gasto no encontrado',
-            content: {
-              'application/json': {
-                schema: { $ref: '#/components/schemas/ErrorResponse' },
-              },
-            },
-          },
         },
       },
       delete: {
         tags: ['Gastos & OCR'],
         summary: 'Eliminar un gasto',
-        description: 'Elimina el registro de la base de datos y borra físicamente la imagen del almacenamiento.',
+        description: 'Elimina el registro y borra físicamente la imagen del almacenamiento.',
         parameters: [
           {
             name: 'id',
             in: 'path',
             required: true,
-            description: 'Identificador único del gasto (UUID)',
-            schema: { type: 'string', example: '3ecb803d-91ec-479a-9ff9-17e6f56e2df5' },
+            description: 'UUID del gasto',
+            schema: { type: 'string' },
           },
         ],
         responses: {
@@ -337,14 +332,6 @@ Guarda la imagen en el almacenamiento y crea un registro de gasto con estado 'co
               },
             },
           },
-          '404': {
-            description: 'Gasto no encontrado',
-            content: {
-              'application/json': {
-                schema: { $ref: '#/components/schemas/ErrorResponse' },
-              },
-            },
-          },
         },
       },
     },
@@ -352,34 +339,34 @@ Guarda la imagen en el almacenamiento y crea un registro de gasto con estado 'co
     '/api/v1/summaries/monthly': {
       get: {
         tags: ['Resúmenes & Analítica'],
-        summary: 'Obtener resumen mensual y desglose por categorías (JSON)',
-        description: 'Calcula el total gastado en el mes, la distribución porcentual por categorías y la comparación respecto al presupuesto definido.',
+        summary: 'Obtener resumen mensual y desglose por categorías en COP',
+        description: 'Calcula el total gastado en Pesos Colombianos (COP), porcentajes por categoría y porcentaje de presupuesto consumido.',
         parameters: [
           {
             name: 'year',
             in: 'query',
-            description: 'Año del resumen (por defecto: año actual)',
+            description: 'Año (ej: 2026)',
             required: false,
             schema: { type: 'integer', example: 2026 },
           },
           {
             name: 'month',
             in: 'query',
-            description: 'Mes del resumen (1-12, por defecto: mes actual)',
+            description: 'Mes (1-12)',
             required: false,
-            schema: { type: 'integer', example: 3 },
+            schema: { type: 'integer', example: 9 },
           },
           {
             name: 'presupuesto',
             in: 'query',
-            description: 'Presupuesto total fijado para calcular porcentaje consumido',
+            description: 'Presupuesto mensual en COP (ej: 5000000 para $5.000.000 COP)',
             required: false,
-            schema: { type: 'number', example: 2500 },
+            schema: { type: 'number', example: 5000000 },
           },
         ],
         responses: {
           '200': {
-            description: 'Resumen mensual calculado con éxito',
+            description: 'Resumen mensual calculado con éxito en COP',
             content: {
               'application/json': {
                 schema: {
@@ -399,14 +386,8 @@ Guarda la imagen en el almacenamiento y crea un registro de gasto con estado 'co
     '/api/v1/summaries/whatsapp-text': {
       get: {
         tags: ['Resúmenes & Analítica'],
-        summary: 'Generar mensaje con barras de progreso listo para WhatsApp',
-        description: `
-Genera el texto listo para ser enviado a través de la API de WhatsApp, formateado con:
-- Emojis por categoría (🛒, 🍽️, 🚗, etc.)
-- Barras de progreso visuales con caracteres Unicode ([████████░░] 77%)
-- Porcentaje de presupuesto gastado
-- Call-to-action para solicitar reportes en Excel
-        `,
+        summary: 'Generar mensaje formateado para WhatsApp en COP',
+        description: 'Genera el texto con emojis, barras de progreso y formato de moneda en Pesos Colombianos ($ COP) listo para enviar por WhatsApp.',
         parameters: [
           {
             name: 'year',
@@ -420,19 +401,19 @@ Genera el texto listo para ser enviado a través de la API de WhatsApp, formatea
             in: 'query',
             description: 'Mes a consultar (1-12)',
             required: false,
-            schema: { type: 'integer', example: 3 },
+            schema: { type: 'integer', example: 9 },
           },
           {
             name: 'presupuesto',
             in: 'query',
-            description: 'Presupuesto mensual para calcular la barra de consumo global',
+            description: 'Presupuesto mensual en COP',
             required: false,
-            schema: { type: 'number', example: 250 },
+            schema: { type: 'number', example: 5000000 },
           },
         ],
         responses: {
           '200': {
-            description: 'Texto formateado generado correctamente',
+            description: 'Texto formateado para WhatsApp en COP',
             content: {
               'application/json': {
                 schema: {
@@ -444,7 +425,7 @@ Genera el texto listo para ser enviado a través de la API de WhatsApp, formatea
                       properties: {
                         text: {
                           type: 'string',
-                          example: "📊 *Resumen de Marzo 2026*\\n\\n*Total gastado:* $10.30 de $250.00\\n[█░░░░░░░░░░░░░░] 4%\\n\\n*Desglose por categorías:*\\n🛒 Supermercado    : $10.30 [████████] 100%\\n\\n📄 *Responde \"DETALLE\" para ver la lista de tickets o \"EXCEL\" para exportar.*",
+                          example: "📊 *Resumen de Septiembre 2026*\\n\\n*Total gastado:* $4.848.950 COP de $5.000.000 COP\\n[██████████████░] 97%\\n\\n*Desglose por categorías:*\\n💻 Tecnología          : $4.798.950 COP [████████] 99%\\n🏠 Hogar y Servicios   : $50.000 COP    [░░░░░░░░] 1%\\n\\n📄 *Responde \"DETALLE\" para ver la lista de comprobantes o \"EXCEL\" para exportar.*",
                         },
                         summary: { $ref: '#/components/schemas/MonthlySummary' },
                       },
@@ -464,8 +445,8 @@ Genera el texto listo para ser enviado a través de la API de WhatsApp, formatea
         type: 'object',
         required: ['descripcion', 'precio'],
         properties: {
-          descripcion: { type: 'string', example: 'LECHE ENTERA 1L' },
-          precio: { type: 'number', example: 1.15 },
+          descripcion: { type: 'string', example: 'TV SAMSUNG 55" 55Q7F+ BarC400' },
+          precio: { type: 'number', example: 2199900 },
           cantidad: { type: 'number', nullable: true, example: 1 },
         },
       },
@@ -475,17 +456,43 @@ Genera el texto listo para ser enviado a través de la API de WhatsApp, formatea
         properties: {
           id: { type: 'string', format: 'uuid', example: '3ecb803d-91ec-479a-9ff9-17e6f56e2df5' },
           userId: { type: 'string', nullable: true, example: 'user-123' },
-          comercio: { type: 'string', example: 'Mercadona' },
-          cifNif: { type: 'string', nullable: true, example: 'A-46103834' },
-          fecha: { type: 'string', format: 'date', example: '2026-03-15' },
-          subtotal: { type: 'number', nullable: true, example: 9.27 },
-          impuestos: { type: 'number', nullable: true, example: 1.03 },
-          total: { type: 'number', example: 10.3 },
-          moneda: { type: 'string', example: 'EUR' },
+          tipoDocumento: {
+            type: 'string',
+            enum: ['factura', 'transferencia'],
+            example: 'transferencia',
+          },
+          comercio: {
+            type: 'string',
+            example: 'Funeraria San Vicente',
+            description: 'En factura: comercio/proveedor. En transferencia: beneficiario o convenio.',
+          },
+          entidadFinanciera: {
+            type: 'string',
+            nullable: true,
+            example: 'Bancolombia / Wompi (Corresponsal Districampo)',
+            description: 'Banco, pasarela o canal (Bancolombia, Wompi, Nequi, etc.)',
+          },
+          cifNif: {
+            type: 'string',
+            nullable: true,
+            example: '890900943-1',
+            description: 'NIT en Colombia o documento de identidad',
+          },
+          numeroReferencia: {
+            type: 'string',
+            nullable: true,
+            example: 'Ref: 42756870, Aprob: 807611',
+            description: 'Número de factura electrónica o referencia de recaudo/aprobación',
+          },
+          fecha: { type: 'string', format: 'date', example: '2026-09-26' },
+          subtotal: { type: 'number', nullable: true, example: 4032731 },
+          impuestos: { type: 'number', nullable: true, example: 766219, description: 'IVA en Colombia' },
+          total: { type: 'number', example: 50000, description: 'Monto total en Pesos Colombianos (COP)' },
+          moneda: { type: 'string', enum: ['COP'], example: 'COP' },
           categoria: {
             type: 'string',
             enum: [...EXPENSE_CATEGORIES],
-            example: 'Supermercado',
+            example: 'Hogar y Servicios',
           },
           lineasArticulos: {
             type: 'array',
@@ -496,54 +503,38 @@ Genera el texto listo para ser enviado a través de la API de WhatsApp, formatea
             enum: ['alta', 'media', 'baja'],
             example: 'alta',
           },
-          notas: { type: 'string', nullable: true, example: 'Ticket número 042-9982, Hora: 14:32' },
-          imageUrl: { type: 'string', example: '/uploads/1790953848714-ticket-mercadona.png' },
-          imageOriginalName: { type: 'string', example: 'ticket-mercadona.png' },
+          notas: { type: 'string', nullable: true },
+          imageUrl: { type: 'string', example: '/uploads/1790956849624-comprobante.png' },
+          imageOriginalName: { type: 'string', example: 'comprobante-wompi.png' },
           estado: {
             type: 'string',
             enum: ['borrador', 'confirmado'],
             example: 'confirmado',
           },
-          createdAt: { type: 'string', format: 'date-time', example: '2026-10-02T15:11:26.048Z' },
-          updatedAt: { type: 'string', format: 'date-time', example: '2026-10-02T15:11:26.048Z' },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
         },
       },
 
       UpdateExpenseDto: {
         type: 'object',
         properties: {
-          comercio: { type: 'string', example: 'Mercadona S.A.' },
-          cifNif: { type: 'string', nullable: true, example: 'A-46103834' },
-          fecha: { type: 'string', format: 'date', example: '2026-03-15' },
-          subtotal: { type: 'number', nullable: true, example: 9.27 },
-          impuestos: { type: 'number', nullable: true, example: 1.03 },
-          total: { type: 'number', example: 10.3 },
-          moneda: { type: 'string', example: 'EUR' },
-          categoria: {
-            type: 'string',
-            enum: [...EXPENSE_CATEGORIES],
-            example: 'Supermercado',
-          },
+          tipoDocumento: { type: 'string', enum: ['factura', 'transferencia'] },
+          comercio: { type: 'string', example: 'Funeraria San Vicente S.A.' },
+          entidadFinanciera: { type: 'string', nullable: true, example: 'Bancolombia' },
+          cifNif: { type: 'string', nullable: true, example: '890900943-1' },
+          numeroReferencia: { type: 'string', nullable: true, example: '42756870' },
+          fecha: { type: 'string', format: 'date', example: '2026-09-26' },
+          subtotal: { type: 'number', nullable: true },
+          impuestos: { type: 'number', nullable: true },
+          total: { type: 'number', example: 50000 },
+          categoria: { type: 'string', enum: [...EXPENSE_CATEGORIES] },
           lineasArticulos: {
             type: 'array',
             items: { $ref: '#/components/schemas/ExpenseItem' },
           },
-          notas: { type: 'string', nullable: true, example: 'Revisado y confirmado manualmente' },
-          estado: {
-            type: 'string',
-            enum: ['borrador', 'confirmado'],
-            example: 'confirmado',
-          },
-        },
-      },
-
-      CategorySummary: {
-        type: 'object',
-        properties: {
-          categoria: { type: 'string', example: 'Supermercado' },
-          total: { type: 'number', example: 10.3 },
-          porcentaje: { type: 'number', example: 100 },
-          numTickets: { type: 'integer', example: 1 },
+          notas: { type: 'string', nullable: true },
+          estado: { type: 'string', enum: ['borrador', 'confirmado'] },
         },
       },
 
@@ -551,15 +542,23 @@ Genera el texto listo para ser enviado a través de la API de WhatsApp, formatea
         type: 'object',
         properties: {
           year: { type: 'integer', example: 2026 },
-          month: { type: 'integer', example: 3 },
-          totalGastado: { type: 'number', example: 10.3 },
-          presupuesto: { type: 'number', nullable: true, example: 250 },
-          porcentajePresupuesto: { type: 'number', nullable: true, example: 4 },
+          month: { type: 'integer', example: 9 },
+          totalGastado: { type: 'number', example: 4848950, description: 'Total en COP' },
+          presupuesto: { type: 'number', nullable: true, example: 5000000, description: 'Presupuesto en COP' },
+          porcentajePresupuesto: { type: 'number', nullable: true, example: 97 },
           categorias: {
             type: 'array',
-            items: { $ref: '#/components/schemas/CategorySummary' },
+            items: {
+              type: 'object',
+              properties: {
+                categoria: { type: 'string', example: 'Tecnología' },
+                total: { type: 'number', example: 4798950 },
+                porcentaje: { type: 'number', example: 99 },
+                numTickets: { type: 'integer', example: 1 },
+              },
+            },
           },
-          numGastos: { type: 'integer', example: 1 },
+          numGastos: { type: 'integer', example: 2 },
         },
       },
 
@@ -570,8 +569,8 @@ Genera el texto listo para ser enviado a través de la API de WhatsApp, formatea
           error: {
             type: 'object',
             properties: {
-              message: { type: 'string', example: 'Recurso no encontrado o error de validación' },
-              code: { type: 'string', example: 'NOT_FOUND' },
+              message: { type: 'string', example: 'Error de validación o recurso no encontrado' },
+              code: { type: 'string', example: 'BAD_REQUEST' },
               details: { type: 'object', nullable: true },
             },
           },

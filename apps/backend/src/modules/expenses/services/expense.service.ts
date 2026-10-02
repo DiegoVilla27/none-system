@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { IOcrExtractor } from '../../../providers/ocr/ocr.interface.js';
+import { IOcrExtractor, RequestedScanType } from '../../../providers/ocr/ocr.interface.js';
 import { IStorageService } from '../../../core/storage/storage.interface.js';
 import { IExpenseRepository } from '../repositories/expense.repository.interface.js';
 import { Expense, ExtractionConfidence } from '../entities/expense.entity.js';
@@ -13,29 +13,36 @@ export class ExpenseService {
     private readonly expenseRepository: IExpenseRepository
   ) {}
 
-  async scanAndCreate(file: Express.Multer.File, userId?: string): Promise<Expense> {
+  async scanAndCreate(
+    file: Express.Multer.File,
+    requestedType: RequestedScanType = 'auto',
+    userId?: string
+  ): Promise<Expense> {
     if (!file || !file.buffer) {
-      throw new BadRequestError('Es necesario adjuntar una imagen o PDF del ticket');
+      throw new BadRequestError('Es necesario adjuntar una imagen o PDF del documento');
     }
 
-    // 1. Guardar la imagen en el almacenamiento (local, S3, Supabase)
+    // 1. Guardar la imagen en almacenamiento
     const storedFile = await this.storageService.save(file);
 
-    // 2. Extraer datos con el OCR de IA (Gemini Flash)
-    const extracted = await this.ocrExtractor.extractFromBuffer(file.buffer, file.mimetype);
+    // 2. Extraer datos con el OCR de IA (Gemini Flash con prompt especializado para Colombia)
+    const extracted = await this.ocrExtractor.extractFromBuffer(file.buffer, file.mimetype, requestedType);
 
-    // 3. Crear entidad de gasto
+    // 3. Crear entidad de gasto en COP
     const now = new Date().toISOString();
     const expense: Expense = {
       id: randomUUID(),
       userId,
+      tipoDocumento: extracted.tipoDocumento,
       comercio: extracted.comercio,
+      entidadFinanciera: extracted.entidadFinanciera,
       cifNif: extracted.cifNif,
+      numeroReferencia: extracted.numeroReferencia,
       fecha: extracted.fecha,
       subtotal: extracted.subtotal,
       impuestos: extracted.impuestos,
       total: extracted.total,
-      moneda: extracted.moneda,
+      moneda: 'COP',
       categoria: extracted.categoria,
       lineasArticulos: extracted.lineasArticulos,
       confianzaExtraccion: extracted.confianzaExtraccion as ExtractionConfidence,
@@ -80,8 +87,7 @@ export class ExpenseService {
 
   async delete(id: string): Promise<void> {
     const expense = await this.getById(id);
-    
-    // Eliminar archivo asociado si existe el filename
+
     if (expense.imageUrl) {
       const filename = expense.imageUrl.split('/').pop();
       if (filename) {
