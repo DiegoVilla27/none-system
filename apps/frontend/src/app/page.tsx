@@ -10,7 +10,7 @@ import { MonthlySummaryCard } from '@/components/organisms/MonthlySummaryCard/Mo
 import { Button } from '@/components/atoms/Button/Button';
 import { Heading, Text } from '@/components/atoms/Typography/Typography';
 import { Expense, MonthlySummary } from '@/types/expense.types';
-import { getExpenses, getMonthlySummary } from '@/lib/api';
+import { useExpenses, useMonthlySummary } from '@/hooks/useExpenses';
 import { formatCOP } from '@/lib/utils';
 import {
   Wallet,
@@ -23,8 +23,24 @@ import {
 
 export default function HomePage() {
   const router = useRouter();
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [summary, setSummary] = useState<MonthlySummary>({
+  const {
+    data: expenses = [],
+    isLoading: isLoadingExpenses,
+    refetch: refetchExpenses,
+    isFetching: isFetchingExpenses,
+  } = useExpenses();
+
+  const {
+    data: summaryData,
+    isLoading: isLoadingSummary,
+    refetch: refetchSummary,
+    isFetching: isFetchingSummary,
+  } = useMonthlySummary();
+
+  const isLoading = isLoadingExpenses || isLoadingSummary;
+  const isFetching = isFetchingExpenses || isFetchingSummary;
+
+  const summary: MonthlySummary = summaryData || {
     year: 2026,
     month: 10,
     totalGastado: 0,
@@ -34,40 +50,12 @@ export default function HomePage() {
     numTransferencias: 0,
     numGastos: 0,
     categorias: [],
-  });
-  const [isLoading, setIsLoading] = useState(true);
-
-  const loadDashboardData = async () => {
-    try {
-      setIsLoading(true);
-      const [expensesData, summaryData] = await Promise.all([
-        getExpenses(),
-        getMonthlySummary(),
-      ]);
-      setExpenses(expensesData || []);
-      setSummary(
-        summaryData || {
-          year: 2026,
-          month: 10,
-          totalGastado: 0,
-          totalFacturas: 0,
-          totalTransferencias: 0,
-          numFacturas: 0,
-          numTransferencias: 0,
-          numGastos: 0,
-          categorias: [],
-        }
-      );
-    } catch (err) {
-      console.warn('Backend load failed:', err);
-    } finally {
-      setIsLoading(false);
-    }
   };
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
+  const handleRefresh = () => {
+    refetchExpenses();
+    refetchSummary();
+  };
 
   const facturas = expenses.filter((e) => e.tipoDocumento === 'factura');
   const transferencias = expenses.filter((e) => e.tipoDocumento === 'transferencia');
@@ -106,8 +94,8 @@ export default function HomePage() {
             <Button
               variant="outline"
               size="md"
-              onClick={loadDashboardData}
-              isLoading={isLoading}
+              onClick={handleRefresh}
+              isLoading={isFetching}
               leftIcon={<RefreshCw className="w-4 h-4" />}
             >
               Refrescar

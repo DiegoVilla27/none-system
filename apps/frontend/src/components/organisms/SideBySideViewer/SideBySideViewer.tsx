@@ -20,6 +20,9 @@ import {
   Hash,
   Calendar,
   CreditCard,
+  ExternalLink,
+  Download,
+  FileText,
 } from 'lucide-react';
 
 export interface SideBySideViewerProps {
@@ -80,6 +83,10 @@ export const SideBySideViewer: React.FC<SideBySideViewerProps> = ({
   };
 
   const isTransferencia = expense.tipoDocumento === 'transferencia';
+  const isPdf =
+    Boolean(expense.imageUrl?.toLowerCase().includes('.pdf')) ||
+    Boolean(expense.imageOriginalName?.toLowerCase().endsWith('.pdf')) ||
+    Boolean(expense.imageUrl?.startsWith('data:application/pdf'));
 
   return (
     <div
@@ -100,57 +107,94 @@ export const SideBySideViewer: React.FC<SideBySideViewerProps> = ({
             </Badge>
           </div>
 
-          {/* Controles de imagen */}
-          <div className="flex items-center gap-1 bg-surface-card border border-surface-border p-1 rounded-lg">
-            <button
-              type="button"
-              onClick={handleZoomOut}
-              className="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-surface-elevated"
-              title="Alejar"
-            >
-              <ZoomOut className="w-3.5 h-3.5" />
-            </button>
-            <span className="text-[10px] font-mono text-slate-400 px-1">
-              {Math.round(zoom * 100)}%
-            </span>
-            <button
-              type="button"
-              onClick={handleZoomIn}
-              className="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-surface-elevated"
-              title="Acercar"
-            >
-              <ZoomIn className="w-3.5 h-3.5" />
-            </button>
-            <div className="w-px h-3 bg-surface-border mx-0.5" />
-            <button
-              type="button"
-              onClick={handleRotate}
-              className="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-surface-elevated"
-              title="Rotar 90°"
-            >
-              <RotateCw className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          {/* Controles: PDF o Imagen */}
+          {isPdf ? (
+            <div className="flex items-center gap-1 bg-surface-card border border-surface-border p-1 rounded-lg">
+              <a
+                href={expense.imageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-brand-300 hover:text-brand-200 hover:bg-surface-elevated transition-colors"
+                title="Abrir PDF en pestaña nueva"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span className="text-[11px] font-medium">Abrir PDF</span>
+              </a>
+              <div className="w-px h-3 bg-surface-border mx-0.5" />
+              <a
+                href={expense.imageUrl}
+                download={expense.imageOriginalName || 'comprobante.pdf'}
+                className="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-surface-elevated transition-colors"
+                title="Descargar PDF"
+              >
+                <Download className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 bg-surface-card border border-surface-border p-1 rounded-lg">
+              <button
+                type="button"
+                onClick={handleZoomOut}
+                className="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-surface-elevated"
+                title="Alejar"
+              >
+                <ZoomOut className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-[10px] font-mono text-slate-400 px-1">
+                {Math.round(zoom * 100)}%
+              </span>
+              <button
+                type="button"
+                onClick={handleZoomIn}
+                className="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-surface-elevated"
+                title="Acercar"
+              >
+                <ZoomIn className="w-3.5 h-3.5" />
+              </button>
+              <div className="w-px h-3 bg-surface-border mx-0.5" />
+              <button
+                type="button"
+                onClick={handleRotate}
+                className="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-surface-elevated"
+                title="Rotar 90°"
+              >
+                <RotateCw className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Contenedor de visualización */}
-        <div className="relative w-full h-[520px] rounded-xl overflow-hidden bg-surface-base border border-surface-border flex items-center justify-center p-4">
-          <div
-            className="transition-transform duration-200 ease-out origin-center flex items-center justify-center"
-            style={{
-              transform: `scale(${zoom}) rotate(${rotation}deg)`,
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={expense.imageUrl}
-              alt="Soporte financiero"
-              className="max-h-[460px] w-auto object-contain rounded-lg shadow-2xl border border-surface-border/50"
-            />
-          </div>
+        <div className="relative w-full h-[540px] rounded-xl overflow-hidden bg-surface-base border border-surface-border flex items-center justify-center p-2">
+          {isPdf ? (
+            <div className="w-full h-full flex flex-col rounded-lg overflow-hidden bg-surface-card">
+              <iframe
+                src={`${expense.imageUrl}#toolbar=1&navpanes=0`}
+                title={`Soporte PDF - ${expense.imageOriginalName}`}
+                className="w-full h-full rounded-lg border-0 bg-surface-base"
+              />
+            </div>
+          ) : (
+            <div
+              className="transition-transform duration-200 ease-out origin-center flex items-center justify-center"
+              style={{
+                transform: `scale(${zoom}) rotate(${rotation}deg)`,
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={expense.imageUrl}
+                alt="Soporte financiero"
+                className="max-h-[480px] w-auto object-contain rounded-lg shadow-2xl border border-surface-border/50"
+              />
+            </div>
+          )}
 
-          <div className="absolute bottom-3 left-3 right-3 py-1.5 px-3 rounded-lg bg-surface-card/90 backdrop-blur-sm border border-surface-border text-xs text-slate-400 flex items-center justify-between">
-            <span className="truncate max-w-[200px]">{expense.imageOriginalName}</span>
+          <div className="absolute bottom-3 left-3 right-3 py-1.5 px-3 rounded-lg bg-surface-card/90 backdrop-blur-sm border border-surface-border text-xs text-slate-400 flex items-center justify-between pointer-events-none">
+            <span className="truncate max-w-[200px] flex items-center gap-1.5">
+              {isPdf && <FileText className="w-3.5 h-3.5 text-rose-400 shrink-0" />}
+              <span className="truncate">{expense.imageOriginalName}</span>
+            </span>
             <Badge variant={expense.confianzaExtraccion} dot>
               Confianza: {expense.confianzaExtraccion}
             </Badge>

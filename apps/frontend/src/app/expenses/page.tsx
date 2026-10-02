@@ -8,33 +8,20 @@ import { ExpenseTable } from '@/components/organisms/ExpenseTable/ExpenseTable';
 import { Heading, Text } from '@/components/atoms/Typography/Typography';
 import { Button } from '@/components/atoms/Button/Button';
 import { Expense } from '@/types/expense.types';
-import { getExpenses } from '@/lib/api';
+import { useExpenses } from '@/hooks/useExpenses';
 import { ReceiptText, Plus, RefreshCw, Download } from 'lucide-react';
 
 export default function ExpensesPage() {
   const router = useRouter();
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    data: expenses = [],
+    isLoading,
+    error: queryError,
+    refetch,
+    isFetching,
+  } = useExpenses();
 
-  const fetchExpensesList = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await getExpenses();
-      setExpenses(data || []);
-    } catch (err) {
-      console.warn('Backend expenses fetch failed:', err);
-      setError('No se pudo conectar con el servidor.');
-      setExpenses([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchExpensesList();
-  }, []);
+  const errorMessage = queryError instanceof Error ? queryError.message : null;
 
   return (
     <DashboardLayout>
@@ -58,8 +45,8 @@ export default function ExpensesPage() {
             <Button
               variant="outline"
               size="md"
-              onClick={fetchExpensesList}
-              isLoading={isLoading}
+              onClick={() => refetch()}
+              isLoading={isFetching}
               leftIcon={<RefreshCw className="w-4 h-4" />}
             >
               Refrescar
@@ -77,9 +64,9 @@ export default function ExpensesPage() {
           </div>
         </div>
 
-        {error && (
+        {errorMessage && (
           <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
-            {error}
+            {errorMessage}
           </div>
         )}
 

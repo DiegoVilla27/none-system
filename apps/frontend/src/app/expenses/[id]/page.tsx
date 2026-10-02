@@ -8,7 +8,7 @@ import { Heading, Text } from '@/components/atoms/Typography/Typography';
 import { Button } from '@/components/atoms/Button/Button';
 import { Badge } from '@/components/atoms/Badge/Badge';
 import { Expense } from '@/types/expense.types';
-import { getExpenseById, updateExpense, deleteExpense } from '@/lib/api';
+import { useExpense, useUpdateExpense, useDeleteExpense } from '@/hooks/useExpenses';
 import { ArrowLeft, Trash2, AlertCircle, RefreshCw, FileText } from 'lucide-react';
 
 export default function ExpenseDetailPage() {
@@ -16,35 +16,18 @@ export default function ExpenseDetailPage() {
   const router = useRouter();
   const id = params?.id as string;
 
-  const [expense, setExpense] = useState<Expense | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const { data: expense, isLoading, error: queryError, refetch } = useExpense(id);
+  const updateMutation = useUpdateExpense();
+  const deleteMutation = useDeleteExpense();
+
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
 
-  const fetchExpense = async () => {
-    if (!id) return;
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await getExpenseById(id);
-      setExpense(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar el detalle del gasto');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchExpense();
-  }, [id]);
+  const error = queryError instanceof Error ? queryError.message : null;
 
   const handleSave = async (updated: Expense) => {
     try {
       setSaveSuccessMsg(null);
-      const saved = await updateExpense(id, updated);
-      setExpense(saved);
+      await updateMutation.mutateAsync({ id, updates: updated });
       setSaveSuccessMsg('¡Comprobante actualizado correctamente!');
       setTimeout(() => setSaveSuccessMsg(null), 3500);
     } catch (err) {
@@ -59,12 +42,10 @@ export default function ExpenseDetailPage() {
     if (!confirmed) return;
 
     try {
-      setIsDeleting(true);
-      await deleteExpense(id);
+      await deleteMutation.mutateAsync(id);
       router.push('/expenses');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Error al eliminar el gasto');
-      setIsDeleting(false);
     }
   };
 
@@ -98,7 +79,7 @@ export default function ExpenseDetailPage() {
                 variant="danger"
                 size="sm"
                 onClick={handleDelete}
-                isLoading={isDeleting}
+                isLoading={deleteMutation.isPending}
                 leftIcon={<Trash2 className="w-3.5 h-3.5" />}
               >
                 Eliminar
@@ -139,7 +120,7 @@ export default function ExpenseDetailPage() {
               </Text>
             </div>
             <div className="flex gap-2">
-              <Button variant="secondary" size="sm" onClick={fetchExpense}>
+              <Button variant="secondary" size="sm" onClick={() => refetch()}>
                 Reintentar
               </Button>
               <Button variant="primary" size="sm" onClick={() => router.push('/expenses')}>
