@@ -8,7 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register } = useAuth();
+  const { register, isAuthenticated, isLoading } = useAuth();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -20,6 +20,13 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successToken, setSuccessToken] = useState<string | null>(null);
+
+  // Guest Guard: Si el usuario ya está autenticado, redirigir al panel
+  React.useEffect(() => {
+    if (!isLoading && isAuthenticated && !successToken) {
+      router.replace('/expenses');
+    }
+  }, [isLoading, isAuthenticated, router, successToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

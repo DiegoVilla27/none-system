@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { User, SubscriptionInfo, AuthSession } from '@/types/auth.types';
+import { User, SubscriptionInfo } from '@/types/auth.types';
 import { loginUser, registerUser, getCurrentUser } from '@/lib/api';
 
 interface AuthContextType {
@@ -24,6 +24,19 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function setAuthCookie(token: string) {
+  if (typeof document !== 'undefined') {
+    const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
+    document.cookie = `none_auth_token=${token}; path=/; max-age=604800; SameSite=Lax${isSecure ? '; Secure' : ''}`;
+  }
+}
+
+function clearAuthCookie() {
+  if (typeof document !== 'undefined') {
+    document.cookie = 'none_auth_token=; path=/; max-age=0; SameSite=Lax';
+  }
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
@@ -37,7 +50,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSubscription(data.subscription);
     } catch (err) {
       console.warn('Error al verificar sesión activa:', err);
-      localStorage.removeItem('none_auth_token');
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('none_auth_token');
+        clearAuthCookie();
+      }
       setUser(null);
       setSubscription(null);
       setToken(null);
@@ -45,11 +61,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem('none_auth_token');
+    const savedToken = typeof window !== 'undefined' ? localStorage.getItem('none_auth_token') : null;
     if (savedToken) {
       setToken(savedToken);
+      setAuthCookie(savedToken);
       refreshUser().finally(() => setIsLoading(false));
     } else {
+      clearAuthCookie();
       setIsLoading(false);
     }
   }, [refreshUser]);
@@ -58,7 +76,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const session = await loginUser(email, pass);
-      localStorage.setItem('none_auth_token', session.token);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('none_auth_token', session.token);
+        setAuthCookie(session.token);
+      }
       setToken(session.token);
       setUser(session.user);
       await refreshUser();
@@ -77,7 +98,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const session = await registerUser(data);
-      localStorage.setItem('none_auth_token', session.token);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('none_auth_token', session.token);
+        setAuthCookie(session.token);
+      }
       setToken(session.token);
       setUser(session.user);
       await refreshUser();
@@ -88,11 +112,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
-    localStorage.removeItem('none_auth_token');
-    setToken(null);
-    setUser(null);
-    setSubscription(null);
-    window.location.href = '/login';
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('none_auth_token');
+      clearAuthCookie();
+      setToken(null);
+      setUser(null);
+      setSubscription(null);
+      window.location.href = '/login';
+    }
   };
 
   return (
@@ -117,7 +144,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (!context) {
-    // Fallback elegante para entornos de prueba aislados sin AuthProvider
+    // Fallback elegante para entornos de prueba unitaria aislados sin AuthProvider
     return {
       user: {
         id: 'usr-admin-demo-colombia',
