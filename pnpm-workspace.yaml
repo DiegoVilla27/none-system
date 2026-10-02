@@ -2,6 +2,7 @@ packages:
   - 'apps/*'
 allowBuilds:
   '@google/genai': true
+  '@scarf/scarf': true
   esbuild: true
   protobufjs: true
 minimumReleaseAgeExclude:

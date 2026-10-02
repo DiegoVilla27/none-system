@@ -7,6 +7,7 @@ const server = app.listen(env.PORT, () => {
   console.log('====================================================');
   console.log(`🚀 Servidor ejecutándose en http://localhost:${env.PORT}`);
   console.log(`📡 Rutas API activas en http://localhost:${env.PORT}${env.API_PREFIX}`);
+  console.log(`📖 Documentación Swagger UI en http://localhost:${env.PORT}/docs`);
   console.log(`🔍 Healthcheck en http://localhost:${env.PORT}/health`);
   console.log(`🤖 OCR Gemini Model: ${env.GEMINI_MODEL}`);
   console.log(`📂 Almacenamiento: ${env.STORAGE_DRIVER} (${env.UPLOAD_DIR})`);

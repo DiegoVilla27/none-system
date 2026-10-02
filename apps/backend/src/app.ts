@@ -16,6 +16,8 @@ import { createExpenseRouter } from './modules/expenses/expenses.routes.js';
 import { SummaryService } from './modules/summaries/services/summary.service.js';
 import { SummaryController } from './modules/summaries/controllers/summary.controller.js';
 import { createSummaryRouter } from './modules/summaries/summaries.routes.js';
+import swaggerUi from 'swagger-ui-express';
+import { openApiSpec } from './docs/openapi.js';
 
 export const createApp = (): { app: Express; expenseRepo: InMemoryExpenseRepository } => {
   const app = express();
@@ -57,6 +59,19 @@ export const createApp = (): { app: Express; expenseRepo: InMemoryExpenseReposit
   apiRouter.use('/summaries', createSummaryRouter(summaryController));
 
   app.use(env.API_PREFIX, apiRouter);
+
+  // Swagger Documentation OpenAPI Specification JSON
+  app.get(['/docs/openapi.json', '/api-docs/openapi.json'], (_req: Request, res: Response) => {
+    res.json(openApiSpec);
+  });
+
+  // Swagger Documentation UI
+  const swaggerOptions = {
+    customSiteTitle: 'none-system Financial API Documentation',
+    customCss: '.swagger-ui .topbar { display: none }',
+  };
+  app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec, swaggerOptions));
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiSpec, swaggerOptions));
 
   // 404 Handler
   app.use((_req: Request, _res: Response, next) => {
