@@ -83,8 +83,10 @@ export interface MonthlySummary {
   year: number;
   month: number;
   totalGastado: number;
-  presupuesto?: number;
-  porcentajePresupuesto?: number;
-  categorias: CategorySummary[];
+  totalFacturas: number;
+  totalTransferencias: number;
+  numFacturas: number;
+  numTransferencias: number;
   numGastos: number;
+  categorias: CategorySummary[];
 }

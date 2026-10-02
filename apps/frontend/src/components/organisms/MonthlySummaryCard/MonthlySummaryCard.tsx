@@ -6,7 +6,7 @@ import { MonthlySummary } from '@/types/expense.types';
 import { ProgressBar } from '@/components/molecules/ProgressBar/ProgressBar';
 import { Button } from '@/components/atoms/Button/Button';
 import { Heading, Text } from '@/components/atoms/Typography/Typography';
-import { MessageSquare, Copy, Check, Download, Sparkles } from 'lucide-react';
+import { MessageSquare, Copy, Check, Download } from 'lucide-react';
 
 export interface MonthlySummaryCardProps {
   summary: MonthlySummary;
@@ -15,7 +15,7 @@ export interface MonthlySummaryCardProps {
 
 /**
  * Componente organismo MonthlySummaryCard que previsualiza el resumen mensual para WhatsApp
- * con barras de progreso y estética de tarjeta financiera premium.
+ * enfocado en control contable de facturas y transferencias (sin presupuestos artificiales).
  */
 export const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
   summary,
@@ -43,9 +43,14 @@ export const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
 
   const handleCopyWhatsApp = () => {
     let text = `📊 *Resumen de ${monthName} ${summary.year}*\n\n`;
-    text += `*Total gastado:* ${formatCOP(summary.totalGastado)} de ${formatCOP(summary.presupuesto || 0)}\n`;
-    text += `Consumo: ${summary.porcentajePresupuesto}%\n\n`;
-    text += `*Desglose por categorías:*\n`;
+    text += `*Total gastado:* ${formatCOP(summary.totalGastado)} (${summary.numGastos} comprobantes)\n`;
+    if (summary.numFacturas > 0) {
+      text += `🧾 *Facturas:* ${formatCOP(summary.totalFacturas)} (${summary.numFacturas})\n`;
+    }
+    if (summary.numTransferencias > 0) {
+      text += `🏦 *Transferencias:* ${formatCOP(summary.totalTransferencias)} (${summary.numTransferencias})\n`;
+    }
+    text += `\n*Desglose por categorías:*\n`;
     summary.categorias.forEach((cat) => {
       const emoji = categoryEmojis[cat.categoria] || '📌';
       text += `${emoji} ${cat.categoria}: ${formatCOP(cat.total)} (${cat.porcentaje}%)\n`;
@@ -60,99 +65,112 @@ export const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
   return (
     <div
       className={cn(
-        'relative overflow-hidden rounded-2xl bg-gradient-to-b from-surface-card to-surface-base border border-surface-border p-6 shadow-subtle flex flex-col gap-5',
+        'relative overflow-hidden rounded-2xl bg-gradient-to-b from-surface-card to-surface-base border border-surface-border p-6 shadow-subtle flex flex-col justify-between gap-5 h-full',
         className
       )}
     >
       {/* Luz ambiental sutil decorativa */}
       <div className="absolute top-0 right-0 w-48 h-48 bg-brand-500/10 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Cabecera */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-brand-500/10 border border-brand-500/30 flex items-center justify-center text-brand-400">
-            <MessageSquare className="w-4 h-4" />
-          </div>
-          <div>
-            <Heading level={4} className="text-slate-100 font-semibold">
-              Tarjeta Resumen de {monthName} {summary.year}
-            </Heading>
-            <Text variant="muted" className="text-slate-400">
-              Formato optimizado para WhatsApp y Control Financiero
-            </Text>
-          </div>
-        </div>
-
-        <span className="px-2.5 py-1 rounded-full bg-surface-elevated border border-surface-border text-[11px] font-mono font-semibold text-brand-300">
-          {summary.numGastos} Comprobantes
-        </span>
-      </div>
-
-      {/* Barra de Presupuesto General */}
-      <div className="p-4 rounded-xl bg-surface-elevated/70 border border-surface-border flex flex-col gap-2.5">
+      <div className="flex flex-col gap-4">
+        {/* Cabecera */}
         <div className="flex items-center justify-between">
-          <span className="text-xs text-slate-300 font-medium">Consumo del Presupuesto</span>
-          <span className="text-xs font-mono font-bold text-cyan-300">
-            {summary.porcentajePresupuesto}% consumido
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-brand-500/10 border border-brand-500/30 flex items-center justify-center text-brand-400 shrink-0">
+              <MessageSquare className="w-4 h-4" />
+            </div>
+            <div>
+              <Heading level={4} className="text-slate-100 font-semibold text-sm">
+                Tarjeta Resumen · {monthName} {summary.year}
+              </Heading>
+              <Text variant="muted" className="text-slate-400 text-[11px]">
+                Formato optimizado para WhatsApp
+              </Text>
+            </div>
+          </div>
+
+          <span className="px-2.5 py-1 rounded-full bg-surface-elevated border border-surface-border text-[11px] font-mono font-semibold text-brand-300 shrink-0">
+            {summary.numGastos} Soportes
           </span>
         </div>
 
-        <ProgressBar
-          percentage={summary.porcentajePresupuesto || 0}
-          size="md"
-        />
+        {/* Resumen Total y Subdesglose Facturas vs Transferencias */}
+        <div className="p-4 rounded-xl bg-surface-elevated/70 border border-surface-border flex flex-col gap-2.5">
+          <div>
+            <span className="text-[11px] text-slate-400 uppercase tracking-wider font-medium">
+              Total Contabilizado (Mes)
+            </span>
+            <div className="text-2xl font-bold font-mono text-cyan-200 mt-0.5">
+              {formatCOP(summary.totalGastado)}
+            </div>
+          </div>
 
-        <div className="flex items-center justify-between text-xs pt-1 border-t border-surface-border/50 text-slate-400">
-          <span>Gastado: <strong className="text-slate-200 font-mono">{formatCOP(summary.totalGastado)}</strong></span>
-          <span>Presupuesto: <strong className="text-slate-200 font-mono">{formatCOP(summary.presupuesto || 0)}</strong></span>
+          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-surface-border/50 text-xs">
+            <div className="flex flex-col">
+              <span className="text-[10px] text-slate-400">Facturas ({summary.numFacturas})</span>
+              <span className="font-mono text-slate-200 font-semibold text-xs truncate">
+                {formatCOP(summary.totalFacturas)}
+              </span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] text-slate-400">Transferencias ({summary.numTransferencias})</span>
+              <span className="font-mono text-slate-200 font-semibold text-xs truncate">
+                {formatCOP(summary.totalTransferencias)}
+              </span>
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* Desglose por Categorías */}
-      <div className="flex flex-col gap-3">
-        <span className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
-          Desglose por Categorías
-        </span>
-
+        {/* Desglose por Categorías */}
         <div className="flex flex-col gap-2.5">
-          {summary.categorias.map((cat) => {
-            const emoji = categoryEmojis[cat.categoria] || '📌';
-            return (
-              <div key={cat.categoria} className="flex flex-col gap-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="flex items-center gap-1.5 text-slate-200">
-                    <span>{emoji}</span>
-                    <span>{cat.categoria}</span>
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-400 font-mono text-[11px]">{cat.porcentaje}%</span>
-                    <span className="font-mono font-semibold text-cyan-300">{formatCOP(cat.total)}</span>
+          <span className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
+            Distribución por Categorías
+          </span>
+
+          <div className="flex flex-col gap-2">
+            {summary.categorias.map((cat) => {
+              const emoji = categoryEmojis[cat.categoria] || '📌';
+              return (
+                <div key={cat.categoria} className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 text-slate-200 truncate">
+                      <span>{emoji}</span>
+                      <span className="truncate">{cat.categoria}</span>
+                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-slate-400 font-mono text-[11px]">{cat.porcentaje}%</span>
+                      <span className="font-mono font-semibold text-cyan-300 text-[11px]">
+                        {formatCOP(cat.total)}
+                      </span>
+                    </div>
                   </div>
+                  <ProgressBar percentage={cat.porcentaje} size="sm" />
                 </div>
-                <ProgressBar percentage={cat.porcentaje} size="sm" />
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
 
       {/* Acciones */}
-      <div className="flex items-center justify-between gap-3 pt-3 border-t border-surface-border">
+      <div className="flex items-center justify-between gap-3 pt-3 border-t border-surface-border mt-auto">
         <Button
           variant="secondary"
           size="sm"
           onClick={handleCopyWhatsApp}
           leftIcon={copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+          className="text-xs"
         >
-          {copied ? '¡Copiado para WhatsApp!' : 'Copiar Texto WhatsApp'}
+          {copied ? '¡Copiado!' : 'Copiar para WhatsApp'}
         </Button>
 
         <Button
           variant="outline"
           size="sm"
           leftIcon={<Download className="w-3.5 h-3.5" />}
+          className="text-xs"
         >
-          Exportar Excel
+          Excel
         </Button>
       </div>
     </div>

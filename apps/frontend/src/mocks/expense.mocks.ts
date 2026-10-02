@@ -127,8 +127,10 @@ export const MOCK_MONTHLY_SUMMARY: MonthlySummary = {
   year: 2026,
   month: 9,
   totalGastado: 5308950,
-  presupuesto: 6000000,
-  porcentajePresupuesto: 88,
+  totalFacturas: 5258950,
+  totalTransferencias: 50000,
+  numFacturas: 3,
+  numTransferencias: 1,
   numGastos: 4,
   categorias: [
     {

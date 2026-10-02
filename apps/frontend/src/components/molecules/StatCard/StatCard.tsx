@@ -46,16 +46,16 @@ export const StatCard: React.FC<StatCardProps> = ({
         className
       )}
     >
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-surface-elevated border border-surface-border flex items-center justify-center text-brand-400 group-hover:scale-105 group-hover:text-brand-300 transition-all">
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-9 h-9 rounded-lg bg-surface-elevated border border-surface-border flex items-center justify-center text-brand-400 group-hover:scale-105 transition-transform shrink-0">
             {icon}
           </div>
-          <Text variant="small" className="text-slate-400 font-medium tracking-wide uppercase">
+          <Text variant="small" className="text-slate-400 font-medium tracking-wide uppercase truncate">
             {title}
           </Text>
         </div>
-        {badge && <div>{badge}</div>}
+        {badge && <div className="shrink-0">{badge}</div>}
       </div>
 
       <div className="text-2xl font-bold tracking-tight text-slate-100 mb-1">

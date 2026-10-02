@@ -12,16 +12,18 @@ export interface MonthlySummary {
   year: number;
   month: number;
   totalGastado: number;
-  presupuesto?: number;
-  porcentajePresupuesto?: number;
-  categorias: CategorySummary[];
+  totalFacturas: number;
+  totalTransferencias: number;
+  numFacturas: number;
+  numTransferencias: number;
   numGastos: number;
+  categorias: CategorySummary[];
 }
 
 export class SummaryService {
   constructor(private readonly expenseRepository: IExpenseRepository) {}
 
-  async getMonthlySummary(year: number, month: number, presupuesto?: number): Promise<MonthlySummary> {
+  async getMonthlySummary(year: number, month: number): Promise<MonthlySummary> {
     const expenses = await this.expenseRepository.findAll({
       year: year.toString(),
       month: month.toString(),
@@ -30,7 +32,20 @@ export class SummaryService {
     const totalGastado = expenses.reduce((acc, curr) => acc + (curr.total || 0), 0);
     const categoryTotals: Record<string, { total: number; count: number }> = {};
 
+    let totalFacturas = 0;
+    let totalTransferencias = 0;
+    let numFacturas = 0;
+    let numTransferencias = 0;
+
     for (const exp of expenses) {
+      if (exp.tipoDocumento === 'transferencia') {
+        totalTransferencias += exp.total;
+        numTransferencias += 1;
+      } else {
+        totalFacturas += exp.total;
+        numFacturas += 1;
+      }
+
       if (!categoryTotals[exp.categoria]) {
         categoryTotals[exp.categoria] = { total: 0, count: 0 };
       }
@@ -47,19 +62,16 @@ export class SummaryService {
       }))
       .sort((a, b) => b.total - a.total);
 
-    const roundTotal = Math.round(totalGastado * 100) / 100;
-    const porcentajePresupuesto = presupuesto && presupuesto > 0
-      ? Math.round((roundTotal / presupuesto) * 100)
-      : undefined;
-
     return {
       year,
       month,
-      totalGastado: roundTotal,
-      presupuesto,
-      porcentajePresupuesto,
-      categorias,
+      totalGastado: Math.round(totalGastado * 100) / 100,
+      totalFacturas: Math.round(totalFacturas * 100) / 100,
+      totalTransferencias: Math.round(totalTransferencias * 100) / 100,
+      numFacturas,
+      numTransferencias,
       numGastos: expenses.length,
+      categorias,
     };
   }
 
@@ -92,14 +104,14 @@ export class SummaryService {
     };
 
     let text = `📊 *Resumen de ${monthName} ${summary.year}*\n\n`;
-
-    if (summary.presupuesto) {
-      const bar = renderProgressBar(summary.porcentajePresupuesto || 0, 15);
-      text += `*Total gastado:* ${formatCOP(summary.totalGastado)} de ${formatCOP(summary.presupuesto)}\n`;
-      text += `[${bar}] ${summary.porcentajePresupuesto}%\n\n`;
-    } else {
-      text += `*Total gastado:* ${formatCOP(summary.totalGastado)} (${summary.numGastos} registros)\n\n`;
+    text += `*Total gastado:* ${formatCOP(summary.totalGastado)} (${summary.numGastos} comprobantes)\n`;
+    if (summary.numFacturas > 0) {
+      text += `🧾 *Facturas:* ${formatCOP(summary.totalFacturas)} (${summary.numFacturas})\n`;
     }
+    if (summary.numTransferencias > 0) {
+      text += `🏦 *Transferencias:* ${formatCOP(summary.totalTransferencias)} (${summary.numTransferencias})\n`;
+    }
+    text += `\n`;
 
     if (summary.categorias.length === 0) {
       text += `_No se registraron gastos en este periodo._\n`;

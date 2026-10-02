@@ -100,10 +100,10 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
             type="button"
             onClick={() => handleTypeChange('factura')}
             className={cn(
-              'flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-medium transition-all select-none',
+              'flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs select-none',
               selectedType === 'factura'
-                ? 'bg-gradient-to-r from-brand-500/20 to-teal-500/20 text-brand-300 border border-brand-500/50 shadow-glow font-semibold'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-surface-elevated'
+                ? 'bg-surface-elevated text-brand-300 border border-brand-500/40 font-semibold'
+                : 'text-slate-400 hover:text-slate-200'
             )}
           >
             <FileText className="w-4 h-4 text-brand-400" />
@@ -114,10 +114,10 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
             type="button"
             onClick={() => handleTypeChange('transferencia')}
             className={cn(
-              'flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-medium transition-all select-none',
+              'flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs select-none',
               selectedType === 'transferencia'
-                ? 'bg-gradient-to-r from-indigo-500/20 to-brand-500/20 text-indigo-300 border border-indigo-500/50 shadow-glow font-semibold'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-surface-elevated'
+                ? 'bg-surface-elevated text-indigo-300 border border-indigo-500/40 font-semibold'
+                : 'text-slate-400 hover:text-slate-200'
             )}
           >
             <CheckCircle2 className="w-4 h-4 text-indigo-400" />
