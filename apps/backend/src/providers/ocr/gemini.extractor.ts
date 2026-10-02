@@ -7,12 +7,10 @@ import { AppError } from '../../core/errors/index.js';
 export class GeminiExtractor implements IOcrExtractor {
   private readonly ai: GoogleGenAI;
   private readonly primaryModel: string;
-  private readonly fallbackModel: string;
 
   constructor() {
     this.ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
     this.primaryModel = env.GEMINI_MODEL;
-    this.fallbackModel = 'gemini-3.5-flash';
   }
 
   async extractFromBuffer(buffer: Buffer, mimeType: string): Promise<ExtractedReceiptData> {
@@ -88,8 +86,12 @@ Instrucciones estrictas:
     let rawText = '';
     let lastError: unknown;
 
-    // Intentar con el modelo primario y si hay sobrecarga o error, probar con el modelo de respaldo
-    const modelsToTry = [this.primaryModel, this.fallbackModel];
+    // Orden de modelos para resiliencia: primario -> gemini-3.5-flash -> gemini-flash-latest
+    const modelsToTry = Array.from(new Set([
+      this.primaryModel,
+      'gemini-3.5-flash',
+      'gemini-flash-latest',
+    ]));
 
     for (const model of modelsToTry) {
       for (let attempt = 1; attempt <= 2; attempt++) {
@@ -121,9 +123,21 @@ Instrucciones estrictas:
           }
         } catch (err: any) {
           lastError = err;
+          const isOverloaded =
+            err.status === 503 ||
+            String(err.message || '').includes('503') ||
+            String(err.message || '').includes('high demand');
+
+          if (isOverloaded) {
+            console.warn(
+              `[GeminiExtractor] Modelo ${model} saturado temporalmente (503 High Demand). Saltando inmediatamente al siguiente modelo sin delay...`
+            );
+            // Salir del bucle interno para cambiar de modelo inmediatamente
+            break;
+          }
+
           console.warn(`[GeminiExtractor] Intento ${attempt} con modelo ${model} falló:`, err.message || err);
-          // Pequeña pausa antes de reintentar en caso de pico de demanda (503 / 429)
-          await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+          await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
         }
       }
 

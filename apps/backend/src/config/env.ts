@@ -11,7 +11,7 @@ const envSchema = z.object({
   STORAGE_DRIVER: z.enum(['local', 's3', 'supabase']).default('local'),
   UPLOAD_DIR: z.string().default('uploads'),
   GEMINI_API_KEY: z.string().min(1, 'GEMINI_API_KEY is required'),
-  GEMINI_MODEL: z.string().default('gemini-3.8-flash'),
+  GEMINI_MODEL: z.string().default('gemini-3.5-flash'),
 });
 
 const parseEnv = () => {
