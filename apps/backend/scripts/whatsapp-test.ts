@@ -138,6 +138,58 @@ async function runWhatsAppTests() {
       }
       console.log('✅ Comando RESUMEN procesado exitosamente.');
 
+      // Prueba 5: Consulta de Cupo / Saldo ("CUPO")
+      console.log('\n6. Enviando mensaje de comando "CUPO"...');
+      const cupoPayload = {
+        object: 'whatsapp_business_account',
+        entry: [
+          {
+            id: 'WHATSAPP_BUSINESS_ACCOUNT_ID',
+            changes: [
+              {
+                value: {
+                  messaging_product: 'whatsapp',
+                  metadata: {
+                    display_phone_number: '15550254415',
+                    phone_number_id: '104928472910',
+                  },
+                  contacts: [
+                    {
+                      profile: { name: 'Diego Villa' },
+                      wa_id: '573001234567',
+                    },
+                  ],
+                  messages: [
+                    {
+                      from: '573001234567',
+                      id: 'wamid.HBgLM3...',
+                      timestamp: '1727892347',
+                      type: 'text',
+                      text: {
+                        body: 'CUPO',
+                      },
+                    },
+                  ],
+                },
+                field: 'messages',
+              },
+            ],
+          },
+        ],
+      };
+
+      const cupoRes = await fetch(`http://localhost:${PORT}/api/v1/whatsapp/webhook`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cupoPayload),
+      });
+
+      const cupoData = await cupoRes.json();
+      if (cupoRes.status !== 200) {
+        throw new Error(`Error en comando cupo: ${JSON.stringify(cupoData)}`);
+      }
+      console.log('✅ Comando CUPO procesado exitosamente.');
+
       // Esperar 1 segundo para que las promesas asíncronas terminen de loguear
       await new Promise((resolve) => setTimeout(resolve, 1000));
 

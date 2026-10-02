@@ -19,6 +19,7 @@ import { createSummaryRouter } from './modules/summaries/summaries.routes.js';
 import { WhatsAppService } from './modules/whatsapp/whatsapp.service.js';
 import { WhatsAppController } from './modules/whatsapp/whatsapp.controller.js';
 import { createWhatsAppRouter } from './modules/whatsapp/whatsapp.routes.js';
+import { SubscriptionService } from './modules/subscriptions/subscription.service.js';
 import swaggerUi from 'swagger-ui-express';
 import { openApiSpec } from './docs/openapi.js';
 
@@ -46,11 +47,13 @@ export const createApp = (): { app: Express; expenseRepo: InMemoryExpenseReposit
   const summaryService = new SummaryService(expenseRepository);
   const summaryController = new SummaryController(summaryService);
 
+  const subscriptionService = new SubscriptionService();
   const whatsAppService = new WhatsAppService(
     ocrExtractor,
     storageService,
     expenseRepository,
-    summaryService
+    summaryService,
+    subscriptionService
   );
   const whatsAppController = new WhatsAppController(whatsAppService);
 
