@@ -1,19 +1,23 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { ExpenseTable } from '@/components/organisms/ExpenseTable/ExpenseTable';
+import { UpgradeModal } from '@/components/molecules/UpgradeModal/UpgradeModal';
 import { Heading, Text } from '@/components/atoms/Typography/Typography';
 import { Button } from '@/components/atoms/Button/Button';
-import { Expense } from '@/types/expense.types';
 import { useExpenses } from '@/hooks/useExpenses';
+import { useAuth } from '@/context/AuthContext';
 import { exportExpensesToCSV } from '@/lib/export-excel';
-import { ReceiptText, Plus, RefreshCw, Download } from 'lucide-react';
+import { ReceiptText, Plus, RefreshCw, Download, Lock } from 'lucide-react';
 
 export default function ExpensesPage() {
   const router = useRouter();
+  const { subscription } = useAuth();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
   const {
     data: expenses = [],
     isLoading,
@@ -23,8 +27,14 @@ export default function ExpensesPage() {
   } = useExpenses();
 
   const errorMessage = queryError instanceof Error ? queryError.message : null;
+  const isFreePlan = !subscription || subscription.plan === 'gratuito';
 
   const handleExportAll = () => {
+    if (isFreePlan) {
+      setShowUpgradeModal(true);
+      return;
+    }
+
     exportExpensesToCSV(
       expenses,
       `Libro_Comprobantes_${new Date().toISOString().slice(0, 10)}`
@@ -54,9 +64,16 @@ export default function ExpensesPage() {
               variant="outline"
               size="md"
               onClick={handleExportAll}
-              leftIcon={<Download className="w-4 h-4 text-emerald-400" />}
+              leftIcon={
+                isFreePlan ? (
+                  <Lock className="w-4 h-4 text-amber-400" />
+                ) : (
+                  <Download className="w-4 h-4 text-emerald-400" />
+                )
+              }
+              title={isFreePlan ? 'Función disponible en planes de pago' : 'Exportar a Excel'}
             >
-              Exportar Excel
+              Exportar Excel {isFreePlan && <span className="ml-1 text-[10px] text-amber-400 font-bold">(PRO)</span>}
             </Button>
 
             <Button
@@ -96,6 +113,13 @@ export default function ExpensesPage() {
           />
         </div>
       </div>
+
+      {/* Modal de Actualización si el usuario gratuito intenta exportar */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        feature="Exportación a Excel / CSV"
+      />
     </DashboardLayout>
   );
 }

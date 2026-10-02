@@ -45,6 +45,9 @@ export interface UserSubscription {
   monthlyLimit: number;
   currentUsage: number;
   billingCycleMonth: string; // Formato YYYY-MM
+  billingCycleAnchor?: number; // Día de corte mensual (1-31)
+  currentPeriodStart?: string; // Fecha ISO inicio del ciclo actual (ej: 2026-10-15)
+  currentPeriodEnd?: string; // Fecha ISO fin del ciclo actual (ej: 2026-11-15)
   status: 'activo' | 'suspendido';
   createdAt: string;
   updatedAt: string;

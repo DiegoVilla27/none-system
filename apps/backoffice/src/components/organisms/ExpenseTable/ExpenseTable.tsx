@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { cn, formatCOP, formatDate } from '@/lib/utils';
 import { Expense, DocumentType, EXPENSE_CATEGORIES, ExpenseCategory } from '@/types/expense.types';
 import { exportExpensesToCSV } from '@/lib/export-excel';
+import { useAuth } from '@/context/AuthContext';
+import { UpgradeModal } from '@/components/molecules/UpgradeModal/UpgradeModal';
 import { Badge } from '@/components/atoms/Badge/Badge';
 import { Button } from '@/components/atoms/Button/Button';
 import { Text } from '@/components/atoms/Typography/Typography';
@@ -16,6 +18,7 @@ import {
   Download,
   X,
   SlidersHorizontal,
+  Lock,
 } from 'lucide-react';
 
 export type DateRangePreset = 'all' | 'this_month' | 'last_month' | 'last_30' | 'custom';
@@ -47,6 +50,10 @@ export const ExpenseTable: React.FC<ExpenseTableProps> = ({
   className,
 }) => {
   const router = useRouter();
+  const { subscription } = useAuth();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const isFreePlan = !subscription || subscription.plan === 'gratuito';
+
   const [filterType, setFilterType] = useState<'all' | DocumentType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -162,6 +169,11 @@ export const ExpenseTable: React.FC<ExpenseTableProps> = ({
   };
 
   const handleExportFiltered = () => {
+    if (isFreePlan) {
+      setShowUpgradeModal(true);
+      return;
+    }
+
     exportExpensesToCSV(
       filteredExpenses,
       `Reporte_Comprobantes_${new Date().toISOString().slice(0, 10)}`
@@ -309,8 +321,15 @@ export const ExpenseTable: React.FC<ExpenseTableProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={handleExportFiltered}
-                leftIcon={<Download className="w-3.5 h-3.5 text-emerald-400" />}
+                leftIcon={
+                  isFreePlan ? (
+                    <Lock className="w-3.5 h-3.5 text-amber-400" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  )
+                }
                 className="text-xs h-7"
+                title={isFreePlan ? 'Función disponible en planes de pago' : 'Exportar a Excel'}
               >
                 Exportar a Excel ({filteredExpenses.length})
               </Button>
@@ -455,6 +474,13 @@ export const ExpenseTable: React.FC<ExpenseTableProps> = ({
           </tbody>
         </table>
       </div>
+
+      {/* Modal de Actualización si el usuario gratuito intenta exportar */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        feature="Exportación a Excel / CSV"
+      />
     </div>
   );
 };

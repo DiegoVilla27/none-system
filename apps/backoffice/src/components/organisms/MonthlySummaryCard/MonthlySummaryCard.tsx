@@ -4,10 +4,12 @@ import React, { useState } from 'react';
 import { cn, formatCOP } from '@/lib/utils';
 import { Expense, MonthlySummary } from '@/types/expense.types';
 import { exportExpensesToCSV } from '@/lib/export-excel';
+import { useAuth } from '@/context/AuthContext';
+import { UpgradeModal } from '@/components/molecules/UpgradeModal/UpgradeModal';
 import { ProgressBar } from '@/components/molecules/ProgressBar/ProgressBar';
 import { Button } from '@/components/atoms/Button/Button';
 import { Heading, Text } from '@/components/atoms/Typography/Typography';
-import { MessageSquare, Copy, Check, Download } from 'lucide-react';
+import { MessageSquare, Copy, Check, Download, Lock } from 'lucide-react';
 
 export interface MonthlySummaryCardProps {
   summary: MonthlySummary;
@@ -33,6 +35,9 @@ export const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
   className,
 }) => {
   const [copied, setCopied] = useState(false);
+  const { subscription } = useAuth();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const isFreePlan = !subscription || subscription.plan === 'gratuito';
 
   const monthNames = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -74,6 +79,11 @@ export const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
   };
 
   const handleExcelExport = () => {
+    if (isFreePlan) {
+      setShowUpgradeModal(true);
+      return;
+    }
+
     if (onExportExcel) {
       onExportExcel();
     } else if (expenses && expenses.length > 0) {
@@ -195,12 +205,26 @@ export const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
           variant="outline"
           size="sm"
           onClick={handleExcelExport}
-          leftIcon={<Download className="w-3.5 h-3.5" />}
+          leftIcon={
+            isFreePlan ? (
+              <Lock className="w-3.5 h-3.5 text-amber-400" />
+            ) : (
+              <Download className="w-3.5 h-3.5" />
+            )
+          }
           className="text-xs"
+          title={isFreePlan ? 'Función disponible en planes de pago' : 'Exportar Excel'}
         >
-          Excel
+          Excel {isFreePlan && <span className="ml-1 text-[10px] text-amber-400 font-bold">(PRO)</span>}
         </Button>
       </div>
+
+      {/* Modal de Actualización si el usuario gratuito intenta exportar */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        feature="Exportación a Excel / CSV"
+      />
     </div>
   );
 };

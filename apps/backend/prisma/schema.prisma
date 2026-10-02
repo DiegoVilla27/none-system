@@ -8,100 +8,101 @@ datasource db {
 }
 
 model User {
-  id                        String              @id @default(uuid())
-  email                     String              @unique
-  passwordHash              String
-  name                      String
-  phoneNumber               String              @unique
-  role                      String              @default("user") // user | admin | contador
-  emailVerified             Boolean             @default(false)
-  verificationToken         String?
-  verificationTokenExpires  DateTime?
-  resetPasswordToken        String?
-  resetPasswordExpires      DateTime?
-  habeasDataAccepted        Boolean             @default(true)
-  habeasDataAcceptedAt      DateTime            @default(now())
-  habeasDataIp              String?
-  habeasDataVersion         String              @default("Ley-1581-2012")
-  createdAt                 DateTime            @default(now())
-  updatedAt                 DateTime            @updatedAt
+  id                       String              @id @default(uuid())
+  email                    String              @unique
+  passwordHash             String              @map("password_hash")
+  name                     String
+  phoneNumber              String              @unique @map("phone_number")
+  role                     String              @default("user") // user | admin | accountant
+  emailVerified            Boolean             @default(false) @map("email_verified")
+  verificationToken        String?             @map("verification_token")
+  verificationTokenExpires DateTime?           @map("verification_token_expires")
+  resetPasswordToken       String?             @map("reset_password_token")
+  resetPasswordExpires     DateTime?           @map("reset_password_expires")
+  habeasDataAccepted       Boolean             @default(true) @map("habeas_data_accepted")
+  habeasDataAcceptedAt     DateTime            @default(now()) @map("habeas_data_accepted_at")
+  habeasDataIp             String?             @map("habeas_data_ip")
+  habeasDataVersion        String              @default("Ley-1581-2012") @map("habeas_data_version")
+  createdAt                DateTime            @default(now()) @map("created_at")
+  updatedAt                DateTime            @updatedAt @map("updated_at")
 
-  subscription              Subscription?
-  expenses                  Expense[]
-  transactions              PaymentTransaction[]
+  subscription             Subscription?
+  expenses                 Expense[]
+  transactions             PaymentTransaction[]
 
   @@map("users")
 }
 
 model Subscription {
-  id                String    @id @default(uuid())
-  userId            String?   @unique
-  user              User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  phoneNumber       String    @unique
-  name              String?
-  plan              String    @default("gratuito") // gratuito | basico | pro | empresarial
-  monthlyLimit      Int       @default(10)
-  currentUsage      Int       @default(0)
-  billingCycleMonth String    // YYYY-MM
-  status            String    @default("activo") // activo | suspendido
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                 String    @id @default(uuid())
+  userId             String?   @unique @map("user_id")
+  user               User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phoneNumber        String    @unique @map("phone_number")
+  name               String?
+  plan               String    @default("free") // free | starter | pro | enterprise
+  monthlyLimit       Int       @default(10) @map("monthly_limit")
+  currentUsage       Int       @default(0) @map("current_usage")
+  billingCycleAnchor Int       @default(1) @map("billing_cycle_anchor") // Day of the month (1-31)
+  currentPeriodStart DateTime  @default(now()) @map("current_period_start")
+  currentPeriodEnd   DateTime  @map("current_period_end")
+  status             String    @default("active") // active | suspended | canceled
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   @@map("subscriptions")
 }
 
 model Expense {
-  id                  String    @id @default(uuid())
-  userId              String?
-  user                User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  tipoDocumento       String    // factura | transferencia
-  comercio            String
-  entidadFinanciera   String?
-  cifNif              String?
-  nit                 String?
-  numeroReferencia    String?
-  cufe                String?   // Código Único de Factura Electrónica (DIAN)
-  fecha               String    // YYYY-MM-DD
-  subtotal            Float?
-  baseGravable        Float?
-  impuestos           Float?
-  iva                 Float?    // IVA (19% o 5%)
-  impoconsumo         Float?    // Impuesto Nacional al Consumo (8%)
-  total               Float     // Total COP
-  moneda              String    @default("COP")
-  categoria           String
-  lineasArticulos     Json      // Desglose de artículos
-  confianzaExtraccion String    @default("alta") // alta | media | baja
-  notas               String?
-  imageUrl            String
-  imageOriginalName   String
-  estado              String    @default("confirmado") // borrador | confirmado
-  isDianCompliant     Boolean   @default(false)
-  encryptedAtRest     Boolean   @default(true)
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                   String    @id @default(uuid())
+  userId               String?   @map("user_id")
+  user                 User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  documentType         String    @map("document_type") // invoice | transfer
+  merchant             String
+  financialEntity      String?   @map("financial_entity")
+  taxId                String?   @map("tax_id") // NIT con dígito de verificación
+  referenceNumber      String?   @map("reference_number")
+  cufe                 String?   // Código Único de Factura Electrónica (DIAN)
+  expenseDate          String    @map("expense_date") // YYYY-MM-DD
+  subtotal             Float?
+  taxableBase          Float?    @map("taxable_base")
+  taxAmount            Float?    @map("tax_amount")
+  vat                  Float?    // IVA (19% o 5%)
+  consumptionTax       Float?    @map("consumption_tax") // Impuesto Nacional al Consumo INC (8%)
+  total                Float     // Total COP
+  currency             String    @default("COP")
+  category             String
+  lineItems            Json      @map("line_items")
+  extractionConfidence String    @default("high") @map("extraction_confidence") // high | medium | low
+  notes                String?
+  imageUrl             String    @map("image_url")
+  imageOriginalName    String    @map("image_original_name")
+  status               String    @default("confirmed") // draft | confirmed
+  isDianCompliant      Boolean   @default(false) @map("is_dian_compliant")
+  encryptedAtRest      Boolean   @default(true) @map("encrypted_at_rest")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
   @@index([userId])
-  @@index([fecha])
-  @@index([tipoDocumento])
+  @@index([expenseDate])
+  @@index([documentType])
   @@map("expenses")
 }
 
 model PaymentTransaction {
   id                String    @id @default(uuid())
-  userId            String?
+  userId            String?   @map("user_id")
   user              User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  phoneNumber       String
-  plan              String    // basico | pro | empresarial
-  amountCOP         Float
-  paymentMethod     String    // pse | card | nequi
+  phoneNumber       String    @map("phone_number")
+  plan              String    // starter | pro | enterprise
+  amountCop         Float     @map("amount_cop")
+  paymentMethod     String    @map("payment_method") // pse | card | nequi
   reference         String    @unique
-  status            String    @default("APROBADA") // APROBADA | PENDIENTE | RECHAZADA
-  customerName      String?
-  customerEmail     String?
-  customerDocNumber String?
-  paidAt            DateTime  @default(now())
-  createdAt         DateTime  @default(now())
+  status            String    @default("APPROVED") // APPROVED | PENDING | REJECTED
+  customerName      String?   @map("customer_name")
+  customerEmail     String?   @map("customer_email")
+  customerDocNumber String?   @map("customer_doc_number")
+  paidAt            DateTime  @default(now()) @map("paid_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
 
   @@index([phoneNumber])
   @@map("payment_transactions")

@@ -10,28 +10,28 @@ export class PrismaExpenseRepository implements IExpenseRepository {
     return {
       id: record.id,
       userId: record.userId || undefined,
-      tipoDocumento: record.tipoDocumento as DocumentType,
-      comercio: record.comercio,
-      entidadFinanciera: record.entidadFinanciera,
-      cifNif: record.cifNif,
-      nit: record.nit,
-      numeroReferencia: record.numeroReferencia,
+      tipoDocumento: record.documentType as DocumentType,
+      comercio: record.merchant,
+      entidadFinanciera: record.financialEntity,
+      cifNif: record.taxId,
+      nit: record.taxId,
+      numeroReferencia: record.referenceNumber,
       cufe: record.cufe,
-      fecha: record.fecha,
+      fecha: record.expenseDate,
       subtotal: record.subtotal,
-      baseGravable: record.baseGravable,
-      impuestos: record.impuestos,
-      iva: record.iva,
-      impoconsumo: record.impoconsumo,
+      baseGravable: record.taxableBase,
+      impuestos: record.taxAmount,
+      iva: record.vat,
+      impoconsumo: record.consumptionTax,
       total: record.total,
       moneda: 'COP',
-      categoria: record.categoria as ExpenseCategory,
-      lineasArticulos: Array.isArray(record.lineasArticulos) ? record.lineasArticulos : [],
-      confianzaExtraccion: record.confianzaExtraccion as ExtractionConfidence,
-      notas: record.notas,
+      categoria: record.category as ExpenseCategory,
+      lineasArticulos: Array.isArray(record.lineItems) ? record.lineItems : [],
+      confianzaExtraccion: record.extractionConfidence as ExtractionConfidence,
+      notas: record.notes,
       imageUrl: record.imageUrl,
       imageOriginalName: record.imageOriginalName,
-      estado: record.estado as ExpenseStatus,
+      estado: record.status as ExpenseStatus,
       isDianCompliant: record.isDianCompliant,
       encryptedAtRest: record.encryptedAtRest,
       createdAt: record.createdAt.toISOString(),
@@ -44,28 +44,27 @@ export class PrismaExpenseRepository implements IExpenseRepository {
       data: {
         id: expense.id,
         userId: expense.userId || null,
-        tipoDocumento: expense.tipoDocumento,
-        comercio: expense.comercio,
-        entidadFinanciera: expense.entidadFinanciera || null,
-        cifNif: expense.cifNif || null,
-        nit: expense.nit || null,
-        numeroReferencia: expense.numeroReferencia || null,
+        documentType: expense.tipoDocumento,
+        merchant: expense.comercio,
+        financialEntity: expense.entidadFinanciera || null,
+        taxId: expense.nit || expense.cifNif || null,
+        referenceNumber: expense.numeroReferencia || null,
         cufe: expense.cufe || null,
-        fecha: expense.fecha,
+        expenseDate: expense.fecha,
         subtotal: expense.subtotal ?? null,
-        baseGravable: expense.baseGravable ?? null,
-        impuestos: expense.impuestos ?? null,
-        iva: expense.iva ?? null,
-        impoconsumo: expense.impoconsumo ?? null,
+        taxableBase: expense.baseGravable ?? null,
+        taxAmount: expense.impuestos ?? null,
+        vat: expense.iva ?? null,
+        consumptionTax: expense.impoconsumo ?? null,
         total: expense.total,
-        moneda: expense.moneda,
-        categoria: expense.categoria,
-        lineasArticulos: expense.lineasArticulos as any,
-        confianzaExtraccion: expense.confianzaExtraccion,
-        notas: expense.notas || null,
+        currency: expense.moneda,
+        category: expense.categoria,
+        lineItems: expense.lineasArticulos as any,
+        extractionConfidence: expense.confianzaExtraccion,
+        notes: expense.notas || null,
         imageUrl: expense.imageUrl,
         imageOriginalName: expense.imageOriginalName,
-        estado: expense.estado,
+        status: expense.estado,
         isDianCompliant: expense.isDianCompliant || false,
         encryptedAtRest: expense.encryptedAtRest || true,
       },
@@ -88,32 +87,32 @@ export class PrismaExpenseRepository implements IExpenseRepository {
       if (filter.userId) {
         where.OR = [
           { userId: filter.userId },
-          { userId: null }, // Comprobantes públicos o globales
+          { userId: null }, // Comprobantes globales o públicos
         ];
       }
       if (filter.tipoDocumento) {
-        where.tipoDocumento = filter.tipoDocumento;
+        where.documentType = filter.tipoDocumento;
       }
       if (filter.categoria) {
-        where.categoria = filter.categoria;
+        where.category = filter.categoria;
       }
       if (filter.estado) {
-        where.estado = filter.estado;
+        where.status = filter.estado;
       }
       if (filter.comercio) {
-        where.comercio = {
+        where.merchant = {
           contains: filter.comercio,
           mode: 'insensitive',
         };
       }
       if (filter.year) {
-        where.fecha = {
+        where.expenseDate = {
           startsWith: filter.year,
         };
       }
       if (filter.month && filter.year) {
         const paddedMonth = filter.month.padStart(2, '0');
-        where.fecha = {
+        where.expenseDate = {
           startsWith: `${filter.year}-${paddedMonth}`,
         };
       }
@@ -122,7 +121,7 @@ export class PrismaExpenseRepository implements IExpenseRepository {
     const records = await this.prisma.expense.findMany({
       where,
       orderBy: {
-        fecha: 'desc',
+        expenseDate: 'desc',
       },
     });
 
@@ -130,15 +129,29 @@ export class PrismaExpenseRepository implements IExpenseRepository {
   }
 
   async update(id: string, updates: Partial<Expense>): Promise<Expense | null> {
-    const data: any = { ...updates };
+    const data: any = {};
 
-    if (updates.lineasArticulos) {
-      data.lineasArticulos = updates.lineasArticulos as any;
-    }
-
-    delete data.id;
-    delete data.createdAt;
-    delete data.updatedAt;
+    if (updates.tipoDocumento !== undefined) data.documentType = updates.tipoDocumento;
+    if (updates.comercio !== undefined) data.merchant = updates.comercio;
+    if (updates.entidadFinanciera !== undefined) data.financialEntity = updates.entidadFinanciera;
+    if (updates.nit !== undefined) data.taxId = updates.nit;
+    if (updates.numeroReferencia !== undefined) data.referenceNumber = updates.numeroReferencia;
+    if (updates.cufe !== undefined) data.cufe = updates.cufe;
+    if (updates.fecha !== undefined) data.expenseDate = updates.fecha;
+    if (updates.subtotal !== undefined) data.subtotal = updates.subtotal;
+    if (updates.baseGravable !== undefined) data.taxableBase = updates.baseGravable;
+    if (updates.impuestos !== undefined) data.taxAmount = updates.impuestos;
+    if (updates.iva !== undefined) data.vat = updates.iva;
+    if (updates.impoconsumo !== undefined) data.consumptionTax = updates.impoconsumo;
+    if (updates.total !== undefined) data.total = updates.total;
+    if (updates.categoria !== undefined) data.category = updates.categoria;
+    if (updates.lineasArticulos !== undefined) data.lineItems = updates.lineasArticulos as any;
+    if (updates.confianzaExtraccion !== undefined) data.extractionConfidence = updates.confianzaExtraccion;
+    if (updates.notas !== undefined) data.notes = updates.notas;
+    if (updates.imageUrl !== undefined) data.imageUrl = updates.imageUrl;
+    if (updates.imageOriginalName !== undefined) data.imageOriginalName = updates.imageOriginalName;
+    if (updates.estado !== undefined) data.status = updates.estado;
+    if (updates.isDianCompliant !== undefined) data.isDianCompliant = updates.isDianCompliant;
 
     try {
       const updated = await this.prisma.expense.update({
