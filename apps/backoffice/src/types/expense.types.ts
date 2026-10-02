@@ -49,10 +49,15 @@ export interface Expense {
   comercio: string; // En factura: Comercio/Proveedor. En transferencia: Beneficiario o Convenio.
   entidadFinanciera?: string | null; // Banco, Wompi, Nequi, Daviplata, etc.
   cifNif?: string | null; // NIT en Colombia
+  nit?: string | null; // NIT con Dígito de Verificación (ej: 890.900.608-9)
   numeroReferencia?: string | null; // No. de factura electrónica o referencia de recaudo
+  cufe?: string | null; // Código Único de Factura Electrónica (DIAN)
   fecha: string; // Formato YYYY-MM-DD
   subtotal?: number | null;
-  impuestos?: number | null; // IVA (19%, 5%, etc.)
+  baseGravable?: number | null; // Base antes de impuestos (Art. 447 E.T.)
+  impuestos?: number | null; // Total de impuestos
+  iva?: number | null; // Impuesto sobre las Ventas (IVA 19% o 5%)
+  impoconsumo?: number | null; // Impuesto Nacional al Consumo (INC 8%)
   total: number; // Monto en Pesos Colombianos (COP)
   moneda: 'COP';
   categoria: ExpenseCategory;
@@ -62,6 +67,8 @@ export interface Expense {
   imageUrl: string;
   imageOriginalName: string;
   estado: ExpenseStatus;
+  isDianCompliant?: boolean; // Cumplimiento de requisitos tributarios DIAN (Art. 771-2 E.T.)
+  encryptedAtRest?: boolean; // Cifrado AES-256 (Habeas Data Ley 1581)
   createdAt: string;
   updatedAt: string;
 }

@@ -30,7 +30,7 @@ export function exportExpensesToCSV(
     return;
   }
 
-  // Encabezados contables estándar
+  // Encabezados contables estándar de Colombia (DIAN & Estatuto Tributario)
   const headers = [
     'Tipo de Documento',
     'Fecha',
@@ -38,10 +38,14 @@ export function exportExpensesToCSV(
     'NIT / Cédula',
     'Entidad Financiera',
     'No. Factura / Referencia',
+    'CUFE DIAN',
     'Categoría',
-    'Base Gravable / Subtotal (COP)',
-    'IVA / Impuestos (COP)',
+    'Base Gravable (COP)',
+    'IVA (COP)',
+    'Impoconsumo INC (COP)',
+    'Total Impuestos (COP)',
     'Total Pagado (COP)',
+    'Deducible DIAN (Art. 771-2)',
     'Conceptos / Artículos',
     'Nivel Confianza IA',
     'Estado Contable',
@@ -50,16 +54,22 @@ export function exportExpensesToCSV(
 
   const rows: string[][] = [];
 
-  let sumSubtotal = 0;
+  let sumBaseGravable = 0;
+  let sumIva = 0;
+  let sumImpoconsumo = 0;
   let sumImpuestos = 0;
   let sumTotal = 0;
 
   expenses.forEach((exp) => {
-    const subtotal = exp.subtotal || 0;
-    const impuestos = exp.impuestos || 0;
+    const baseGravable = exp.baseGravable || exp.subtotal || 0;
+    const iva = exp.iva || 0;
+    const impoconsumo = exp.impoconsumo || 0;
+    const impuestos = exp.impuestos || (iva + impoconsumo) || 0;
     const total = exp.total || 0;
 
-    sumSubtotal += subtotal;
+    sumBaseGravable += baseGravable;
+    sumIva += iva;
+    sumImpoconsumo += impoconsumo;
     sumImpuestos += impuestos;
     sumTotal += total;
 
@@ -74,13 +84,17 @@ export function exportExpensesToCSV(
       exp.tipoDocumento === 'factura' ? 'Factura Comercial' : 'Transferencia Bancaria',
       exp.fecha || '',
       exp.comercio || 'No identificado',
-      exp.cifNif || '',
+      exp.nit || exp.cifNif || '',
       exp.entidadFinanciera || '',
       exp.numeroReferencia || '',
+      exp.cufe || 'N/A',
       exp.categoria || 'Otros',
-      String(subtotal),
+      String(baseGravable),
+      String(iva),
+      String(impoconsumo),
       String(impuestos),
       String(total),
+      exp.isDianCompliant ? 'SÍ (Deducible)' : 'NO',
       conceptos,
       exp.confianzaExtraccion.toUpperCase(),
       exp.estado.toUpperCase(),
@@ -97,9 +111,13 @@ export function exportExpensesToCSV(
     '',
     '',
     '',
-    String(sumSubtotal),
+    '',
+    String(sumBaseGravable),
+    String(sumIva),
+    String(sumImpoconsumo),
     String(sumImpuestos),
     String(sumTotal),
+    '',
     '',
     '',
     '',

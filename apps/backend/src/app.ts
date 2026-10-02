@@ -22,6 +22,10 @@ import { createWhatsAppRouter } from './modules/whatsapp/whatsapp.routes.js';
 import { SubscriptionService } from './modules/subscriptions/subscription.service.js';
 import { SubscriptionController } from './modules/subscriptions/subscription.controller.js';
 import { createSubscriptionRouter } from './modules/subscriptions/subscription.routes.js';
+import { InMemoryUserRepository } from './modules/auth/repositories/in-memory-user.repository.js';
+import { AuthService } from './modules/auth/services/auth.service.js';
+import { AuthController } from './modules/auth/controllers/auth.controller.js';
+import { createAuthRouter } from './modules/auth/auth.routes.js';
 import swaggerUi from 'swagger-ui-express';
 import { openApiSpec } from './docs/openapi.js';
 
@@ -51,6 +55,11 @@ export const createApp = (): { app: Express; expenseRepo: InMemoryExpenseReposit
 
   const subscriptionService = new SubscriptionService();
   const subscriptionController = new SubscriptionController(subscriptionService);
+
+  const userRepository = new InMemoryUserRepository();
+  const authService = new AuthService(userRepository, subscriptionService);
+  const authController = new AuthController(authService);
+
   const whatsAppService = new WhatsAppService(
     ocrExtractor,
     storageService,
@@ -72,6 +81,7 @@ export const createApp = (): { app: Express; expenseRepo: InMemoryExpenseReposit
 
   // Mount API Routers
   const apiRouter = express.Router();
+  apiRouter.use('/auth', createAuthRouter(authController));
   apiRouter.use('/expenses', createExpenseRouter(expenseController));
   apiRouter.use('/summaries', createSummaryRouter(summaryController));
   apiRouter.use('/whatsapp', createWhatsAppRouter(whatsAppController));

@@ -185,10 +185,15 @@ export class WhatsAppService {
           comercio: extracted.comercio,
           entidadFinanciera: extracted.entidadFinanciera,
           cifNif: extracted.cifNif,
+          nit: extracted.nit || extracted.cifNif,
           numeroReferencia: extracted.numeroReferencia,
+          cufe: extracted.cufe,
           fecha: extracted.fecha,
           subtotal: extracted.subtotal,
+          baseGravable: extracted.baseGravable || extracted.subtotal,
           impuestos: extracted.impuestos,
+          iva: extracted.iva,
+          impoconsumo: extracted.impoconsumo,
           total: extracted.total,
           moneda: 'COP',
           categoria: extracted.categoria,
@@ -198,6 +203,8 @@ export class WhatsAppService {
           imageUrl: storedFile.url,
           imageOriginalName: storedFile.originalName,
           estado: 'confirmado',
+          isDianCompliant: extracted.isDianCompliant ?? Boolean(extracted.tipoDocumento === 'factura' && (extracted.nit || extracted.cifNif)),
+          encryptedAtRest: true,
           createdAt: now,
           updatedAt: now,
         };
@@ -210,17 +217,34 @@ export class WhatsAppService {
 
         // 6. Enviar mensaje de confirmación al usuario
         let responseText = `✅ *¡Comprobante procesado con éxito!*\n\n`;
-        responseText += `📋 *Tipo:* ${expense.tipoDocumento === 'factura' ? 'Factura Comercial' : 'Transferencia Bancaria'}\n`;
+        responseText += `📋 *Tipo:* ${expense.tipoDocumento === 'factura' ? 'Factura Comercial (DIAN)' : 'Transferencia Bancaria'}\n`;
         responseText += `🏪 *Comercio / Beneficiario:* ${expense.comercio}\n`;
         responseText += `💰 *Total Pagado:* ${this.formatCOP(expense.total)}\n`;
+
+        if (expense.baseGravable) {
+          responseText += `💵 *Base Gravable:* ${this.formatCOP(expense.baseGravable)}\n`;
+        }
+        if (expense.iva) {
+          responseText += `📊 *IVA (19%/5%):* ${this.formatCOP(expense.iva)}\n`;
+        }
+        if (expense.impoconsumo) {
+          responseText += `🍽️ *Impoconsumo (8%):* ${this.formatCOP(expense.impoconsumo)}\n`;
+        }
+
         responseText += `📅 *Fecha:* ${expense.fecha}\n`;
         responseText += `🏷️ *Categoría:* ${expense.categoria}\n`;
 
-        if (expense.numeroReferencia) {
-          responseText += `🔢 *No. Ref:* ${expense.numeroReferencia}\n`;
+        if (expense.nit || expense.cifNif) {
+          responseText += `🆔 *NIT Emisor:* ${expense.nit || expense.cifNif}\n`;
         }
-        if (expense.cifNif) {
-          responseText += `🆔 *NIT / Cédula:* ${expense.cifNif}\n`;
+        if (expense.numeroReferencia) {
+          responseText += `🔢 *No. Ref / Factura:* ${expense.numeroReferencia}\n`;
+        }
+        if (expense.cufe) {
+          responseText += `🛡️ *CUFE DIAN:* ${expense.cufe.slice(0, 16)}...\n`;
+        }
+        if (expense.isDianCompliant) {
+          responseText += `🏛️ *Deducción DIAN (Art. 771-2):* ✅ Válido\n`;
         }
 
         if (expense.lineasArticulos && expense.lineasArticulos.length > 0) {

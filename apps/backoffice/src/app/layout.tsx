@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { QueryProvider } from '@/providers/QueryProvider';
+import { AuthProvider } from '@/context/AuthContext';
 
 export const metadata: Metadata = {
   title: 'none-system · Control Contable & Financiero Inteligente en Colombia',
@@ -33,7 +34,9 @@ export default function RootLayout({
   return (
     <html lang="es" className="dark">
       <body className="min-h-screen bg-surface-base text-slate-100 font-sans antialiased">
-        <QueryProvider>{children}</QueryProvider>
+        <QueryProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   );

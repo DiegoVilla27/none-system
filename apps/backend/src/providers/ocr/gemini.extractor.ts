@@ -139,22 +139,27 @@ INSTRUCCIONES ESPECÍFICAS PARA COMPROBANTE BANCARIO:
     if (requestedType === 'factura') {
       return `
 ${baseColombianRules}
-ESTE DOCUMENTO ES UNA FACTURA DE VENTA / TICKET DE COMPRA COMERCIAL.
-(Ejemplos: Factura Electrónica de Venta Alkomprar, Éxito, D1, Ara, Falabella, supermercados, tiendas, restaurantes).
+ESTE DOCUMENTO ES UNA FACTURA DE VENTA / TICKET DE COMPRA COMERCIAL EN COLOMBIA (DIAN).
+(Ejemplos: Factura Electrónica de Venta Alkomprar, Éxito, D1, Ara, Falabella, restaurantes, tiendas de retail, etc.).
 
-INSTRUCCIONES ESPECÍFICAS PARA FACTURA COMERCIAL:
+INSTRUCCIONES ESPECÍFICAS DE RECONOCIMIENTO FISCAL COLOMBIANO (DIAN & ESTATUTO TRIBUTARIO):
 1. "tipoDocumento": Obligatoriamente "factura".
-2. "comercio": Nombre comercial del establecimiento o razón social (ej: "Alkomprar", "Colombiana de Comercio S.A.", "Almacenes Éxito").
-3. "entidadFinanciera": Medio de pago si aparece (ej: "Tarjeta Crédito Redeban", "Contado", "PSE") o null.
-4. "cifNif": NIT de la empresa colombiana (ej: "890900943-1").
-5. "numeroReferencia": Número de Factura Electrónica de Venta o Prefijo (ej: "X9722525757").
-6. "fecha": Fecha de emisión en formato YYYY-MM-DD.
-7. "subtotal": Base imponible antes de impuestos en COP (ej: 4032731) o null si no se desglosa.
-8. "impuestos": Valor total del IVA en COP (ej: 766219) o null.
-9. "total": Valor Total a pagar en COP (ej: 4798950).
-10. "categoria": Categoría apropiada ("Tecnología", "Supermercado", "Hogar y Servicios", "Restauración", etc.).
-11. "lineasArticulos": Desglose de cada producto comprado con su descripción y precio final después de descuentos (ej: TV Samsung, Lavadora, etc.).
-12. "confianzaExtraccion": "alta", "media" o "baja".
+2. "comercio": Razón social o nombre comercial del establecimiento emisor (ej: "Almacenes Éxito S.A.", "Colombiana de Comercio S.A.").
+3. "nit": NIT del emisor en Colombia CON SU DÍGITO DE VERIFICACIÓN (ej: "890.900.608-9" o "900.123.456-1").
+4. "cifNif": Mismo valor que el NIT.
+5. "numeroReferencia": Número o consecutivo de la Factura Electrónica (ej: "SETP-982104").
+6. "cufe": Código Único de Factura Electrónica de la DIAN (cadena alfanumérica larga o hash hexadecimal visible junto a 'CUFE:' o código QR de la DIAN). Si no está visible, null.
+7. "fecha": Fecha de emisión en formato YYYY-MM-DD.
+8. "subtotal" / "baseGravable": Base imponible gravable antes de impuestos en COP (ej: 119748).
+9. "iva": Valor exacto del Impuesto sobre las Ventas (IVA 19% o 5%) en COP. Si el establecimiento no cobra IVA o es exento, null o 0.
+10. "impoconsumo": Valor del Impuesto Nacional al Consumo (INC 8%) en COP (muy común en restaurantes, cafeterías, panaderías y bares según Art. 512-1 E.T.). Si no aplica, null o 0.
+11. "impuestos": La sumatoria de IVA + Impoconsumo en COP.
+12. "total": Valor Total a pagar en COP (ej: 142500).
+13. "isDianCompliant": true si el documento cuenta con NIT identificable, fecha, y discriminación de impuestos para deducción fiscal (Art. 771-2 E.T.); false en caso contrario.
+14. "entidadFinanciera": Medio de pago utilizado (ej: "Tarjeta Débito Bancolombia", "Efectivo", "PSE", "Transferencia").
+15. "categoria": Categoría apropiada ("Tecnología", "Supermercado", "Hogar y Servicios", "Restauración", etc.).
+16. "lineasArticulos": Desglose de cada producto comprado con su descripción y precio final.
+17. "confianzaExtraccion": "alta", "media" o "baja".
 `;
     }
 
@@ -162,21 +167,28 @@ INSTRUCCIONES ESPECÍFICAS PARA FACTURA COMERCIAL:
     return `
 ${baseColombianRules}
 Analiza la imagen adjunta y determina primero si es:
-- "factura": Factura de venta, ticket de compra, almacén o restaurante con artículos e IVA.
-- "transferencia": Comprobante bancario, recaudo de corresponsal (Bancolombia, Wompi, Nequi), depósito o voucher de pago.
+- "factura": Factura de venta, ticket POS de compra, restaurante o almacén en Colombia.
+- "transferencia": Comprobante bancario, recaudo de corresponsal (Bancolombia, Wompi, Nequi, Daviplata), consignación o voucher.
 
 REGLAS SEGÚN EL TIPO:
 - Si es "transferencia":
   * "comercio": El nombre del convenio o persona que recibe el dinero (ej. "Funeraria San Vicente").
-  * "entidadFinanciera": El banco o pasarela (ej. "Bancolombia / Wompi").
-  * "numeroReferencia": Referencia o código de aprobación.
-  * "subtotal" e "impuestos": null.
+  * "entidadFinanciera": El banco o pasarela (ej. "Bancolombia / Wompi", "Nequi").
+  * "numeroReferencia": Referencia bancaria o código de aprobación.
+  * "subtotal", "baseGravable", "iva", "impoconsumo" e "impuestos": null.
+  * "cufe": null.
+  * "isDianCompliant": false.
   * "total": El monto neto pagado en COP.
 - Si es "factura":
-  * "comercio": La tienda o emisor comercial (ej. "Alkomprar").
-  * "cifNif": NIT de la empresa con dígito de verificación si está visible.
-  * "numeroReferencia": No. de factura electrónica.
-  * "subtotal", "impuestos" (IVA) y "total" en COP.
+  * "comercio": Emisor comercial o razón social.
+  * "nit": NIT con dígito de verificación (ej: "890.900.608-9").
+  * "cufe": Hash CUFE de la DIAN si está visible.
+  * "baseGravable": Subtotal antes de impuestos en COP.
+  * "iva": Impuesto a las ventas (19% o 5%) en COP.
+  * "impoconsumo": Impuesto al consumo (8%) en COP (en restaurantes/cafés).
+  * "impuestos": Total impuestos (IVA + Impoconsumo).
+  * "total": Total a pagar en COP.
+  * "isDianCompliant": true si contiene NIT y soporte fiscal para deducción.
   * "lineasArticulos": Productos desglosados.
 `;
   }
@@ -194,16 +206,22 @@ REGLAS SEGÚN EL TIPO:
           comercio: { type: Type.STRING },
           entidadFinanciera: { type: Type.STRING, nullable: true },
           cifNif: { type: Type.STRING, nullable: true },
+          nit: { type: Type.STRING, nullable: true },
           numeroReferencia: { type: Type.STRING, nullable: true },
+          cufe: { type: Type.STRING, nullable: true },
           fecha: { type: Type.STRING },
           subtotal: { type: Type.NUMBER, nullable: true },
+          baseGravable: { type: Type.NUMBER, nullable: true },
           impuestos: { type: Type.NUMBER, nullable: true },
+          iva: { type: Type.NUMBER, nullable: true },
+          impoconsumo: { type: Type.NUMBER, nullable: true },
           total: { type: Type.NUMBER },
           moneda: { type: Type.STRING, enum: ['COP'] },
           categoria: {
             type: Type.STRING,
             enum: [...EXPENSE_CATEGORIES],
           },
+          isDianCompliant: { type: Type.BOOLEAN, nullable: true },
           lineasArticulos: {
             type: Type.ARRAY,
             items: {
@@ -248,20 +266,41 @@ REGLAS SEGÚN EL TIPO:
         ? parsed.confianzaExtraccion
         : 'media';
 
+      const nit = parsed.nit || parsed.cifNif || null;
+      const subtotal = typeof parsed.baseGravable === 'number'
+        ? parsed.baseGravable
+        : typeof parsed.subtotal === 'number'
+        ? parsed.subtotal
+        : null;
+
+      const iva = typeof parsed.iva === 'number' ? parsed.iva : null;
+      const impoconsumo = typeof parsed.impoconsumo === 'number' ? parsed.impoconsumo : null;
+      const impuestos = typeof parsed.impuestos === 'number'
+        ? parsed.impuestos
+        : (iva !== null || impoconsumo !== null)
+        ? (iva || 0) + (impoconsumo || 0)
+        : null;
+
       return {
         tipoDocumento: tipoDoc,
         comercio: parsed.comercio || (tipoDoc === 'transferencia' ? 'Destinatario Desconocido' : 'Comercio Desconocido'),
         entidadFinanciera: parsed.entidadFinanciera || null,
-        cifNif: parsed.cifNif || null,
+        cifNif: nit,
+        nit,
         numeroReferencia: parsed.numeroReferencia || null,
+        cufe: parsed.cufe || null,
         fecha: parsed.fecha || new Date().toISOString().split('T')[0],
-        subtotal: typeof parsed.subtotal === 'number' ? parsed.subtotal : null,
-        impuestos: typeof parsed.impuestos === 'number' ? parsed.impuestos : null,
+        subtotal,
+        baseGravable: subtotal,
+        impuestos,
+        iva,
+        impoconsumo,
         total: typeof parsed.total === 'number' ? parsed.total : 0,
         moneda: 'COP',
         categoria,
         lineasArticulos: Array.isArray(parsed.lineasArticulos) ? parsed.lineasArticulos : [],
         confianzaExtraccion: confianza,
+        isDianCompliant: Boolean(parsed.isDianCompliant ?? (tipoDoc === 'factura' && nit)),
         notas: parsed.notas || null,
       };
     } catch (parseErr) {

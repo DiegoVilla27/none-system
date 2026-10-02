@@ -6,6 +6,15 @@ const API_BASE =
     : process.env.NEXT_PUBLIC_API_URL || '/api/v1';
 
 /**
+ * Obtiene los encabezados de autenticación con el Bearer Token si existe en el cliente.
+ */
+export function getAuthHeaders(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  const token = localStorage.getItem('none_auth_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/**
  * Parser seguro de respuestas HTTP para evitar errores de sintaxis JSON
  * y transformar errores técnicos en mensajes comprensibles y amigables.
  */
@@ -17,7 +26,7 @@ async function parseApiResponse<T>(res: Response, fallbackMessage: string): Prom
     throw new Error('No se pudo establecer conexión con el servidor. Revisa tu conexión.');
   }
 
-  let json: { success?: boolean; data?: T; error?: { message?: string; code?: string } } | null = null;
+  let json: { success?: boolean; status?: string; data?: T; message?: string; error?: { message?: string; code?: string } } | null = null;
   if (rawText) {
     try {
       json = JSON.parse(rawText);
@@ -37,8 +46,10 @@ async function parseApiResponse<T>(res: Response, fallbackMessage: string): Prom
     }
   }
 
-  if (!res.ok || !json?.success) {
-    const rawMsg = json?.error?.message || fallbackMessage;
+  const isSuccess = res.ok && (json?.success === true || json?.status === 'success' || !json?.error);
+
+  if (!isSuccess) {
+    const rawMsg = json?.error?.message || json?.message || fallbackMessage;
 
     // Normalización de mensajes técnicos a lenguaje amigable
     if (
@@ -61,7 +72,7 @@ async function parseApiResponse<T>(res: Response, fallbackMessage: string): Prom
     throw new Error(rawMsg);
   }
 
-  return json.data as T;
+  return (json?.data !== undefined ? json.data : json) as T;
 }
 
 /**
@@ -74,15 +85,21 @@ export function sanitizeUpdateExpenseDto(expense: Partial<Expense>) {
   if (expense.comercio !== undefined) allowed.comercio = expense.comercio;
   if (expense.entidadFinanciera !== undefined) allowed.entidadFinanciera = expense.entidadFinanciera;
   if (expense.cifNif !== undefined) allowed.cifNif = expense.cifNif;
+  if (expense.nit !== undefined) allowed.nit = expense.nit;
   if (expense.numeroReferencia !== undefined) allowed.numeroReferencia = expense.numeroReferencia;
+  if (expense.cufe !== undefined) allowed.cufe = expense.cufe;
   if (expense.fecha !== undefined) allowed.fecha = expense.fecha;
   if (expense.subtotal !== undefined) allowed.subtotal = expense.subtotal;
+  if (expense.baseGravable !== undefined) allowed.baseGravable = expense.baseGravable;
   if (expense.impuestos !== undefined) allowed.impuestos = expense.impuestos;
+  if (expense.iva !== undefined) allowed.iva = expense.iva;
+  if (expense.impoconsumo !== undefined) allowed.impoconsumo = expense.impoconsumo;
   if (expense.total !== undefined) allowed.total = expense.total;
   if (expense.categoria !== undefined) allowed.categoria = expense.categoria;
   if (expense.lineasArticulos !== undefined) allowed.lineasArticulos = expense.lineasArticulos;
   if (expense.notas !== undefined) allowed.notas = expense.notas;
   if (expense.estado !== undefined) allowed.estado = expense.estado;
+  if (expense.isDianCompliant !== undefined) allowed.isDianCompliant = expense.isDianCompliant;
 
   return allowed;
 }
@@ -97,6 +114,9 @@ export async function scanExpense(file: File, tipo: DocumentType): Promise<Expen
 
   const res = await fetch(`${API_BASE}/expenses/scan`, {
     method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+    },
     body: formData,
   });
 
@@ -121,6 +141,9 @@ export async function getExpenses(filter?: {
   const url = `${API_BASE}/expenses${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const res = await fetch(url, {
     cache: 'no-store',
+    headers: {
+      ...getAuthHeaders(),
+    },
   });
 
   return parseApiResponse<Expense[]>(res, 'Error al obtener la lista de comprobantes.');
@@ -132,6 +155,9 @@ export async function getExpenses(filter?: {
 export async function getExpenseById(id: string): Promise<Expense> {
   const res = await fetch(`${API_BASE}/expenses/${encodeURIComponent(id)}`, {
     cache: 'no-store',
+    headers: {
+      ...getAuthHeaders(),
+    },
   });
 
   return parseApiResponse<Expense>(res, `El comprobante con ID ${id} no fue encontrado.`);
@@ -147,6 +173,7 @@ export async function updateExpense(id: string, updates: Partial<Expense>): Prom
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
+      ...getAuthHeaders(),
     },
     body: JSON.stringify(sanitized),
   });
@@ -160,6 +187,9 @@ export async function updateExpense(id: string, updates: Partial<Expense>): Prom
 export async function deleteExpense(id: string): Promise<void> {
   const res = await fetch(`${API_BASE}/expenses/${encodeURIComponent(id)}`, {
     method: 'DELETE',
+    headers: {
+      ...getAuthHeaders(),
+    },
   });
 
   await parseApiResponse<{ message: string }>(res, 'Error al eliminar el comprobante.');
@@ -176,7 +206,89 @@ export async function getMonthlySummary(year?: number, month?: number): Promise<
   const url = `${API_BASE}/summaries/monthly${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
   const res = await fetch(url, {
     cache: 'no-store',
+    headers: {
+      ...getAuthHeaders(),
+    },
   });
 
   return parseApiResponse<MonthlySummary>(res, 'Error al obtener el resumen contable del mes.');
+}
+
+// ==========================================
+// MÓDULO DE AUTENTICACIÓN Y SEGURIDAD (AUTH)
+// ==========================================
+
+import type { User, AuthSession, SubscriptionInfo } from '@/types/auth.types';
+
+export async function loginUser(email: string, password: string): Promise<AuthSession> {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  return parseApiResponse<AuthSession>(res, 'Error al iniciar sesión.');
+}
+
+export async function registerUser(data: {
+  email: string;
+  password: string;
+  name: string;
+  phoneNumber: string;
+  habeasDataAccepted: true;
+}): Promise<AuthSession> {
+  const res = await fetch(`${API_BASE}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return parseApiResponse<AuthSession>(res, 'Error al registrar usuario.');
+}
+
+export async function verifyEmail(token: string): Promise<{ message: string; user: User }> {
+  const res = await fetch(`${API_BASE}/auth/verify-email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+  return parseApiResponse<{ message: string; user: User }>(res, 'Error al verificar correo.');
+}
+
+export async function requestPasswordReset(email: string): Promise<{ message: string; resetToken?: string }> {
+  const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  return parseApiResponse<{ message: string; resetToken?: string }>(res, 'Error al solicitar recuperación.');
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+  const res = await fetch(`${API_BASE}/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, newPassword }),
+  });
+  return parseApiResponse<{ message: string }>(res, 'Error al restablecer la contraseña.');
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+  const res = await fetch(`${API_BASE}/auth/change-password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  return parseApiResponse<{ message: string }>(res, 'Error al cambiar contraseña.');
+}
+
+export async function getCurrentUser(): Promise<{ user: User; subscription: SubscriptionInfo }> {
+  const res = await fetch(`${API_BASE}/auth/me`, {
+    headers: {
+      ...getAuthHeaders(),
+    },
+    cache: 'no-store',
+  });
+  return parseApiResponse<{ user: User; subscription: SubscriptionInfo }>(res, 'Error al obtener perfil.');
 }

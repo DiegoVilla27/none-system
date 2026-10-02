@@ -7,6 +7,9 @@ import { cn } from '@/lib/utils';
 import { Sparkles, Scan, LayoutDashboard, ReceiptText, ArrowUpRight } from 'lucide-react';
 import { Button } from '@/components/atoms/Button/Button';
 
+import { useAuth } from '@/context/AuthContext';
+import { User, LogOut } from 'lucide-react';
+
 export interface NavbarProps {
   className?: string;
 }
@@ -16,11 +19,13 @@ export interface NavbarProps {
  */
 export const Navbar: React.FC<NavbarProps> = ({ className }) => {
   const pathname = usePathname();
+  const { user, isAuthenticated, logout } = useAuth();
 
   const navLinks = [
     { label: 'Dashboard', href: '/', icon: <LayoutDashboard className="w-4 h-4" /> },
     { label: 'Escanear', href: '/scan', icon: <Scan className="w-4 h-4" /> },
     { label: 'Historial de Gastos', href: '/expenses', icon: <ReceiptText className="w-4 h-4" /> },
+    { label: 'Seguridad / Perfil', href: '/profile', icon: <User className="w-4 h-4" /> },
   ];
 
   return (
@@ -86,6 +91,38 @@ export const Navbar: React.FC<NavbarProps> = ({ className }) => {
               Nuevo Escaneo
             </Button>
           </Link>
+
+          {/* Auth State Button */}
+          {isAuthenticated ? (
+            <div className="flex items-center gap-2 pl-2 border-l border-surface-border">
+              <Link
+                href="/profile"
+                className="hidden lg:flex flex-col text-right hover:opacity-80 transition-opacity"
+              >
+                <span className="text-xs font-semibold text-white leading-tight truncate max-w-[120px]">
+                  {user?.name || 'Usuario'}
+                </span>
+                <span className="text-[10px] text-brand-400 uppercase tracking-wider">
+                  {user?.role || 'Admin'}
+                </span>
+              </Link>
+              <button
+                onClick={logout}
+                title="Cerrar Sesión"
+                className="p-2 rounded-lg border border-surface-border bg-surface-card text-slate-400 hover:text-red-400 hover:border-red-500/40 transition-colors"
+                aria-label="Cerrar sesión"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <Link
+              href="/login"
+              className="text-xs font-semibold text-slate-300 hover:text-white px-3 py-1.5 rounded-lg border border-surface-border bg-surface-card"
+            >
+              Iniciar Sesión
+            </Link>
+          )}
         </div>
       </div>
     </header>

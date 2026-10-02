@@ -16,18 +16,25 @@ export const updateExpenseSchema = z.object({
   comercio: z.string().min(1, 'El comercio/beneficiario no puede estar vacío').optional(),
   entidadFinanciera: z.string().nullable().optional(),
   cifNif: z.string().nullable().optional(), // NIT en Colombia
+  nit: z.string().nullable().optional(), // NIT con DV
   numeroReferencia: z.string().nullable().optional(),
+  cufe: z.string().nullable().optional(), // CUFE DIAN
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido (YYYY-MM-DD)').optional(),
   subtotal: z.number().nullable().optional(),
-  impuestos: z.number().nullable().optional(), // IVA
+  baseGravable: z.number().nullable().optional(),
+  impuestos: z.number().nullable().optional(), // Total impuestos
+  iva: z.number().nullable().optional(), // IVA 19% o 5%
+  impoconsumo: z.number().nullable().optional(), // INC 8%
   total: z.number().min(0, 'El total no puede ser negativo').optional(),
   categoria: z.enum(EXPENSE_CATEGORIES).optional(),
   lineasArticulos: z.array(expenseItemSchema).optional(),
   notas: z.string().nullable().optional(),
   estado: z.enum(['borrador', 'confirmado']).optional(),
+  isDianCompliant: z.boolean().optional(),
 });
 
 export const filterExpenseSchema = z.object({
+  userId: z.string().optional(),
   year: z.string().regex(/^\d{4}$/).optional(),
   month: z.string().regex(/^(0?[1-9]|1[0-2])$/).optional(),
   tipoDocumento: z.enum(['factura', 'transferencia']).optional(),
