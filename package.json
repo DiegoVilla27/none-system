@@ -1,0 +1,12 @@
+{
+  "name": "none-system",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:backend": "pnpm --filter @none-system/backend dev",
+    "build:backend": "pnpm --filter @none-system/backend build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
