@@ -168,7 +168,7 @@ export default function HomePage() {
 
           {/* Tarjeta de Resumen ocupando las 4 columnas restantes */}
           <div className="lg:col-span-4 h-full">
-            <MonthlySummaryCard summary={summary} />
+            <MonthlySummaryCard summary={summary} expenses={expenses} />
           </div>
         </div>
 

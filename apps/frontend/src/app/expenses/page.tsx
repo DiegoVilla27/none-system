@@ -9,6 +9,7 @@ import { Heading, Text } from '@/components/atoms/Typography/Typography';
 import { Button } from '@/components/atoms/Button/Button';
 import { Expense } from '@/types/expense.types';
 import { useExpenses } from '@/hooks/useExpenses';
+import { exportExpensesToCSV } from '@/lib/export-excel';
 import { ReceiptText, Plus, RefreshCw, Download } from 'lucide-react';
 
 export default function ExpensesPage() {
@@ -22,6 +23,13 @@ export default function ExpensesPage() {
   } = useExpenses();
 
   const errorMessage = queryError instanceof Error ? queryError.message : null;
+
+  const handleExportAll = () => {
+    exportExpensesToCSV(
+      expenses,
+      `Libro_Comprobantes_${new Date().toISOString().slice(0, 10)}`
+    );
+  };
 
   return (
     <DashboardLayout>
@@ -42,6 +50,15 @@ export default function ExpensesPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="md"
+              onClick={handleExportAll}
+              leftIcon={<Download className="w-4 h-4 text-emerald-400" />}
+            >
+              Exportar Excel
+            </Button>
+
             <Button
               variant="outline"
               size="md"
@@ -70,10 +87,11 @@ export default function ExpensesPage() {
           </div>
         )}
 
-        {/* Listado Principal de la Tabla */}
+        {/* Listado Principal de la Tabla con Filtros Avanzados */}
         <div className="flex flex-col gap-4">
           <ExpenseTable
             expenses={expenses}
+            showAdvancedFilters={true}
             onViewExpense={(exp) => router.push(`/expenses/${exp.id}`)}
           />
         </div>

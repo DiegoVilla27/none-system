@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { cn, formatCOP } from '@/lib/utils';
-import { MonthlySummary } from '@/types/expense.types';
+import { Expense, MonthlySummary } from '@/types/expense.types';
+import { exportExpensesToCSV } from '@/lib/export-excel';
 import { ProgressBar } from '@/components/molecules/ProgressBar/ProgressBar';
 import { Button } from '@/components/atoms/Button/Button';
 import { Heading, Text } from '@/components/atoms/Typography/Typography';
@@ -10,6 +11,14 @@ import { MessageSquare, Copy, Check, Download } from 'lucide-react';
 
 export interface MonthlySummaryCardProps {
   summary: MonthlySummary;
+  /**
+   * Comprobantes del periodo para exportación directa a Excel.
+   */
+  expenses?: Expense[];
+  /**
+   * Callback personalizado para exportación a Excel.
+   */
+  onExportExcel?: () => void;
   className?: string;
 }
 
@@ -19,6 +28,8 @@ export interface MonthlySummaryCardProps {
  */
 export const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
   summary,
+  expenses,
+  onExportExcel,
   className,
 }) => {
   const [copied, setCopied] = useState(false);
@@ -60,6 +71,16 @@ export const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleExcelExport = () => {
+    if (onExportExcel) {
+      onExportExcel();
+    } else if (expenses && expenses.length > 0) {
+      exportExpensesToCSV(expenses, `Reporte_Contable_${monthName}_${summary.year}`);
+    } else {
+      alert('No hay comprobantes disponibles para exportar en este periodo.');
+    }
   };
 
   return (
@@ -173,6 +194,7 @@ export const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
         <Button
           variant="outline"
           size="sm"
+          onClick={handleExcelExport}
           leftIcon={<Download className="w-3.5 h-3.5" />}
           className="text-xs"
         >
