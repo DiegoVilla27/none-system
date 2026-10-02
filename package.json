@@ -5,9 +5,12 @@
   "scripts": {
     "dev:backend": "pnpm --filter @none-system/backend dev",
     "build:backend": "pnpm --filter @none-system/backend build",
-    "dev:frontend": "pnpm --filter @none-system/frontend dev",
-    "build:frontend": "pnpm --filter @none-system/frontend build",
-    "test": "pnpm --filter @none-system/frontend test"
+    "dev:backoffice": "pnpm --filter @none-system/backoffice dev",
+    "build:backoffice": "pnpm --filter @none-system/backoffice build",
+    "dev:landing": "pnpm --filter @none-system/landing dev",
+    "build:landing": "pnpm --filter @none-system/landing build",
+    "test": "pnpm --filter @none-system/backoffice test",
+    "test:backoffice": "pnpm --filter @none-system/backoffice test"
   },
   "keywords": [],
   "author": "",
