@@ -52,6 +52,12 @@ export const SideBySideViewer: React.FC<SideBySideViewerProps> = ({
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [isSaved, setIsSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Sync if initialExpense changes
+  React.useEffect(() => {
+    setExpense(initialExpense);
+  }, [initialExpense]);
 
   const handleZoomIn = () => setZoom((prev) => Math.min(prev + 0.25, 2.5));
   const handleZoomOut = () => setZoom((prev) => Math.max(prev - 0.25, 0.5));
@@ -61,9 +67,16 @@ export const SideBySideViewer: React.FC<SideBySideViewerProps> = ({
     setExpense((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSave = () => {
-    setIsSaved(true);
-    onSave?.(expense);
+  const handleSave = async () => {
+    try {
+      setIsSaving(true);
+      if (onSave) {
+        await onSave(expense);
+      }
+      setIsSaved(true);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const isTransferencia = expense.tipoDocumento === 'transferencia';
@@ -249,39 +262,35 @@ export const SideBySideViewer: React.FC<SideBySideViewerProps> = ({
         </div>
 
         {/* Resumen de Totales en COP */}
-        <div className="pt-3 border-t border-surface-border grid grid-cols-3 gap-3">
-          <div className="flex flex-col p-2.5 rounded-lg bg-surface-base border border-surface-border">
-            <span className="text-[10px] text-slate-400 uppercase tracking-wide">Subtotal</span>
-            <span className="text-xs font-mono text-slate-300 font-semibold mt-0.5">
-              {expense.subtotal !== null && expense.subtotal !== undefined
-                ? formatCOP(expense.subtotal)
-                : 'N/A'}
-            </span>
-          </div>
+        <div className="pt-3 border-t border-surface-border grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Input
+            type="number"
+            label="Subtotal (COP)"
+            value={expense.subtotal !== null && expense.subtotal !== undefined ? expense.subtotal : ''}
+            onChange={(e) => updateField('subtotal', e.target.value ? Number(e.target.value) : null)}
+            placeholder="Opcional"
+          />
 
-          <div className="flex flex-col p-2.5 rounded-lg bg-surface-base border border-surface-border">
-            <span className="text-[10px] text-slate-400 uppercase tracking-wide">IVA (Impuestos)</span>
-            <span className="text-xs font-mono text-slate-300 font-semibold mt-0.5">
-              {expense.impuestos !== null && expense.impuestos !== undefined
-                ? formatCOP(expense.impuestos)
-                : 'N/A'}
-            </span>
-          </div>
+          <Input
+            type="number"
+            label="IVA / Impuestos (COP)"
+            value={expense.impuestos !== null && expense.impuestos !== undefined ? expense.impuestos : ''}
+            onChange={(e) => updateField('impuestos', e.target.value ? Number(e.target.value) : null)}
+            placeholder="Opcional"
+          />
 
-          <div className="flex flex-col p-2.5 rounded-lg bg-brand-500/10 border border-brand-500/30">
-            <span className="text-[10px] text-brand-300 uppercase tracking-wide font-semibold">
-              Total a Pagar (COP)
-            </span>
-            <span className="text-sm font-mono text-cyan-200 font-bold mt-0.5">
-              {formatCOP(expense.total)}
-            </span>
-          </div>
+          <Input
+            type="number"
+            label="Total a Pagar (COP) *"
+            value={expense.total || ''}
+            onChange={(e) => updateField('total', Number(e.target.value) || 0)}
+          />
         </div>
 
         {/* Acciones Finales */}
         <div className="flex items-center justify-end gap-3 pt-4 border-t border-surface-border mt-2">
           {onCancel && (
-            <Button variant="ghost" size="md" onClick={onCancel}>
+            <Button variant="ghost" size="md" onClick={onCancel} disabled={isSaving}>
               Descartar
             </Button>
           )}
@@ -290,6 +299,7 @@ export const SideBySideViewer: React.FC<SideBySideViewerProps> = ({
             variant="primary"
             size="md"
             onClick={handleSave}
+            isLoading={isSaving}
             leftIcon={
               isSaved ? (
                 <CheckCircle2 className="w-4 h-4 text-slate-950" />

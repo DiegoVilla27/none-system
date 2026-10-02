@@ -1,4 +1,8 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { StatCard } from '@/components/molecules/StatCard/StatCard';
 import { ExpenseTable } from '@/components/organisms/ExpenseTable/ExpenseTable';
@@ -6,6 +10,8 @@ import { MonthlySummaryCard } from '@/components/organisms/MonthlySummaryCard/Mo
 import { Button } from '@/components/atoms/Button/Button';
 import { Heading, Text } from '@/components/atoms/Typography/Typography';
 import { MOCK_EXPENSES, MOCK_MONTHLY_SUMMARY } from '@/mocks/expense.mocks';
+import { Expense, MonthlySummary } from '@/types/expense.types';
+import { getExpenses, getMonthlySummary } from '@/lib/api';
 import { formatCOP } from '@/lib/utils';
 import {
   Wallet,
@@ -13,15 +19,49 @@ import {
   ArrowRightLeft,
   Scan,
   Calculator,
+  RefreshCw,
 } from 'lucide-react';
 
 export default function HomePage() {
-  const facturas = MOCK_EXPENSES.filter((e) => e.tipoDocumento === 'factura');
-  const transferencias = MOCK_EXPENSES.filter((e) => e.tipoDocumento === 'transferencia');
+  const router = useRouter();
+  const [expenses, setExpenses] = useState<Expense[]>(MOCK_EXPENSES);
+  const [summary, setSummary] = useState<MonthlySummary>(MOCK_MONTHLY_SUMMARY);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadDashboardData = async () => {
+    try {
+      setIsLoading(true);
+      const [expensesData, summaryData] = await Promise.all([
+        getExpenses(),
+        getMonthlySummary(),
+      ]);
+      setExpenses(expensesData);
+      setSummary(summaryData);
+    } catch (err) {
+      console.warn('Backend load failed, fallback to initial state:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const facturas = expenses.filter((e) => e.tipoDocumento === 'factura');
+  const transferencias = expenses.filter((e) => e.tipoDocumento === 'transferencia');
 
   const totalFacturas = facturas.reduce((acc, curr) => acc + curr.total, 0);
   const totalTransferencias = transferencias.reduce((acc, curr) => acc + curr.total, 0);
-  const promedio = MOCK_EXPENSES.length > 0 ? MOCK_MONTHLY_SUMMARY.totalGastado / MOCK_EXPENSES.length : 0;
+  const totalGeneral = expenses.reduce((acc, curr) => acc + curr.total, 0);
+  const promedio = expenses.length > 0 ? totalGeneral / expenses.length : 0;
+
+  // Mes dinámico para la píldora
+  const monthNames = [
+    'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+    'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
+  ];
+  const currentMonthBadge = `${monthNames[(summary.month || 10) - 1]} ${summary.year || 2026}`;
 
   return (
     <DashboardLayout>
@@ -41,15 +81,27 @@ export default function HomePage() {
             </Text>
           </div>
 
-          <Link href="/scan">
+          <div className="flex items-center gap-3">
             <Button
-              variant="primary"
-              size="lg"
-              leftIcon={<Scan className="w-4 h-4" />}
+              variant="outline"
+              size="md"
+              onClick={loadDashboardData}
+              isLoading={isLoading}
+              leftIcon={<RefreshCw className="w-4 h-4" />}
             >
-              Escanear Nuevo Documento
+              Refrescar
             </Button>
-          </Link>
+
+            <Link href="/scan">
+              <Button
+                variant="primary"
+                size="md"
+                leftIcon={<Scan className="w-4 h-4" />}
+              >
+                Escanear Nuevo Documento
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* ================= FILA 1: 4 CARDS (8/12) + TARJETA RESUMEN (4/12) ================= */}
@@ -58,21 +110,21 @@ export default function HomePage() {
           <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <StatCard
               title="Total Gastado (Mes)"
-              value={formatCOP(MOCK_MONTHLY_SUMMARY.totalGastado)}
+              value={formatCOP(summary.totalGastado || totalGeneral)}
               icon={<Wallet className="w-5 h-5 text-brand-400" />}
-              subtext="Consolidado de 4 soportes auditados"
+              subtext={`Consolidado de ${summary.numGastos || expenses.length} soportes auditados`}
               badge={
                 <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 whitespace-nowrap shrink-0">
-                  Sep 2026
+                  {currentMonthBadge}
                 </span>
               }
             />
 
             <StatCard
               title="Facturas Comerciales"
-              value={`${facturas.length} Facturas`}
+              value={`${summary.numFacturas || facturas.length} Facturas`}
               icon={<FileText className="w-5 h-5 text-cyan-400" />}
-              subtext={`Total: ${formatCOP(totalFacturas)} en compras`}
+              subtext={`Total: ${formatCOP(summary.totalFacturas || totalFacturas)} en compras`}
               badge={
                 <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 whitespace-nowrap shrink-0">
                   Comercial
@@ -82,9 +134,9 @@ export default function HomePage() {
 
             <StatCard
               title="Transferencias / Recaudos"
-              value={`${transferencias.length} Comprobante`}
+              value={`${summary.numTransferencias || transferencias.length} Comprobantes`}
               icon={<ArrowRightLeft className="w-5 h-5 text-indigo-400" />}
-              subtext={`Total: ${formatCOP(totalTransferencias)} bancarios`}
+              subtext={`Total: ${formatCOP(summary.totalTransferencias || totalTransferencias)} bancarios`}
               badge={
                 <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 whitespace-nowrap shrink-0">
                   Bancario
@@ -107,7 +159,7 @@ export default function HomePage() {
 
           {/* Tarjeta de Resumen ocupando las 4 columnas restantes */}
           <div className="lg:col-span-4 h-full">
-            <MonthlySummaryCard summary={MOCK_MONTHLY_SUMMARY} />
+            <MonthlySummaryCard summary={summary} />
           </div>
         </div>
 
@@ -128,7 +180,10 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <ExpenseTable expenses={MOCK_EXPENSES} />
+          <ExpenseTable
+            expenses={expenses}
+            onViewExpense={(exp) => router.push(`/expenses/${exp.id}`)}
+          />
         </div>
       </div>
     </DashboardLayout>

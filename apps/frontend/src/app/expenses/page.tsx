@@ -1,17 +1,41 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { ExpenseTable } from '@/components/organisms/ExpenseTable/ExpenseTable';
-import { SideBySideViewer } from '@/components/organisms/SideBySideViewer/SideBySideViewer';
 import { Heading, Text } from '@/components/atoms/Typography/Typography';
 import { Button } from '@/components/atoms/Button/Button';
-import { MOCK_EXPENSES } from '@/mocks/expense.mocks';
 import { Expense } from '@/types/expense.types';
-import { ReceiptText, ArrowLeft, Download } from 'lucide-react';
+import { getExpenses } from '@/lib/api';
+import { MOCK_EXPENSES } from '@/mocks/expense.mocks';
+import { ReceiptText, Plus, RefreshCw, Download } from 'lucide-react';
 
 export default function ExpensesPage() {
-  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+  const router = useRouter();
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchExpensesList = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await getExpenses();
+      setExpenses(data);
+    } catch (err) {
+      console.warn('Backend expenses fetch failed, using fallback:', err);
+      setError('No se pudo conectar con el servidor. Mostrando datos de respaldo.');
+      setExpenses(MOCK_EXPENSES);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchExpensesList();
+  }, []);
 
   return (
     <DashboardLayout>
@@ -35,41 +59,38 @@ export default function ExpensesPage() {
             <Button
               variant="outline"
               size="md"
-              leftIcon={<Download className="w-4 h-4" />}
+              onClick={fetchExpensesList}
+              isLoading={isLoading}
+              leftIcon={<RefreshCw className="w-4 h-4" />}
             >
-              Exportar Todo (.xlsx)
+              Refrescar
             </Button>
+
+            <Link href="/scan">
+              <Button
+                variant="primary"
+                size="md"
+                leftIcon={<Plus className="w-4 h-4" />}
+              >
+                Nuevo Escaneo
+              </Button>
+            </Link>
           </div>
         </div>
 
-        {/* Si hay un gasto seleccionado para inspección */}
-        {selectedExpense ? (
-          <div className="flex flex-col gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSelectedExpense(null)}
-              leftIcon={<ArrowLeft className="w-4 h-4" />}
-              className="w-fit"
-            >
-              Volver al Listado General
-            </Button>
-
-            <SideBySideViewer
-              initialExpense={selectedExpense}
-              onSave={() => setSelectedExpense(null)}
-              onCancel={() => setSelectedExpense(null)}
-            />
-          </div>
-        ) : (
-          /* Listado Principal de la Tabla */
-          <div className="flex flex-col gap-4">
-            <ExpenseTable
-              expenses={MOCK_EXPENSES}
-              onViewExpense={(exp) => setSelectedExpense(exp)}
-            />
+        {error && (
+          <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
+            {error}
           </div>
         )}
+
+        {/* Listado Principal de la Tabla */}
+        <div className="flex flex-col gap-4">
+          <ExpenseTable
+            expenses={expenses}
+            onViewExpense={(exp) => router.push(`/expenses/${exp.id}`)}
+          />
+        </div>
       </div>
     </DashboardLayout>
   );

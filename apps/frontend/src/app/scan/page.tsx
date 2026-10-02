@@ -1,38 +1,50 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { FileUploader } from '@/components/molecules/FileUploader/FileUploader';
 import { SideBySideViewer } from '@/components/organisms/SideBySideViewer/SideBySideViewer';
 import { Heading, Text } from '@/components/atoms/Typography/Typography';
 import { Button } from '@/components/atoms/Button/Button';
-import { MOCK_EXPENSES } from '@/mocks/expense.mocks';
 import { Expense, DocumentType } from '@/types/expense.types';
-import { Sparkles, RefreshCw } from 'lucide-react';
+import { scanExpense, updateExpense } from '@/lib/api';
+import { Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
 
 export default function ScanPage() {
-  // Inicia vacío para un nuevo escaneo
+  const router = useRouter();
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleFileSelect = (file: File, type: DocumentType) => {
-    setIsScanning(true);
-
-    // Simulación de escaneo visual con la plantilla correspondiente según el tipo seleccionado
-    setTimeout(() => {
-      const match = type === 'transferencia' ? MOCK_EXPENSES[1] : MOCK_EXPENSES[0];
-      const previewUrl = file.type.startsWith('image/')
-        ? URL.createObjectURL(file)
-        : match.imageUrl;
-
-      setSelectedExpense({
-        ...match,
-        tipoDocumento: type,
-        imageUrl: previewUrl,
-        imageOriginalName: file.name,
-      });
+  const handleFileSelect = async (file: File, type: DocumentType) => {
+    try {
+      setIsScanning(true);
+      setError(null);
+      const scanned = await scanExpense(file, type);
+      setSelectedExpense(scanned);
+    } catch (err) {
+      console.error('OCR Scanning failed:', err);
+      setError(err instanceof Error ? err.message : 'Error al procesar el archivo');
+    } finally {
       setIsScanning(false);
-    }, 1000);
+    }
+  };
+
+  const handleConfirmAndSave = async (updated: Expense) => {
+    if (!selectedExpense) return;
+    try {
+      setError(null);
+      await updateExpense(selectedExpense.id, {
+        ...updated,
+        estado: 'confirmado',
+      });
+
+      // Redirigir a la tabla de expenses tras guardar exitosamente
+      router.push('/expenses');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al guardar el comprobante');
+    }
   };
 
   return (
@@ -57,13 +69,24 @@ export default function ScanPage() {
             <Button
               variant="secondary"
               size="md"
-              onClick={() => setSelectedExpense(null)}
+              onClick={() => {
+                setSelectedExpense(null);
+                setError(null);
+              }}
               leftIcon={<RefreshCw className="w-4 h-4 text-brand-400" />}
             >
               Nuevo Escaneo
             </Button>
           )}
         </div>
+
+        {/* Mensaje de Error */}
+        {error && (
+          <div className="p-4 rounded-xl bg-surface-card border border-rose-500/30 flex items-center gap-3 text-rose-300 text-xs">
+            <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
 
         {/* Zona de Escaneo o Vista Lado a Lado */}
         {!selectedExpense ? (
@@ -77,8 +100,11 @@ export default function ScanPage() {
           <div className="flex flex-col gap-6">
             <SideBySideViewer
               initialExpense={selectedExpense}
-              onSave={(updated) => setSelectedExpense(updated)}
-              onCancel={() => setSelectedExpense(null)}
+              onSave={handleConfirmAndSave}
+              onCancel={() => {
+                setSelectedExpense(null);
+                setError(null);
+              }}
             />
           </div>
         )}

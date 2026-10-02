@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { cn, formatCOP, formatDate } from '@/lib/utils';
 import { Expense, DocumentType } from '@/types/expense.types';
 import { Badge } from '@/components/atoms/Badge/Badge';
 import { Button } from '@/components/atoms/Button/Button';
 import { Text } from '@/components/atoms/Typography/Typography';
-import { Search, Filter, Eye, Trash2, ArrowUpDown } from 'lucide-react';
+import { Search, Eye } from 'lucide-react';
 
 export interface ExpenseTableProps {
   /**
@@ -14,7 +15,7 @@ export interface ExpenseTableProps {
    */
   expenses: Expense[];
   /**
-   * Callback invocado al hacer clic en inspeccionar un gasto.
+   * Callback invocado al hacer clic en inspeccionar un gasto. Si no se provee, navega a /expenses/:id.
    */
   onViewExpense?: (expense: Expense) => void;
   className?: string;
@@ -28,8 +29,17 @@ export const ExpenseTable: React.FC<ExpenseTableProps> = ({
   onViewExpense,
   className,
 }) => {
+  const router = useRouter();
   const [filterType, setFilterType] = useState<'all' | DocumentType>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const handleInspect = (exp: Expense) => {
+    if (onViewExpense) {
+      onViewExpense(exp);
+    } else {
+      router.push(`/expenses/${exp.id}`);
+    }
+  };
 
   const filteredExpenses = expenses.filter((exp) => {
     const matchesType = filterType === 'all' || exp.tipoDocumento === filterType;
@@ -53,10 +63,10 @@ export const ExpenseTable: React.FC<ExpenseTableProps> = ({
             type="button"
             onClick={() => setFilterType('all')}
             className={cn(
-              'px-3 py-1.5 rounded-lg text-xs font-medium transition-all select-none',
+              'px-3 py-1.5 rounded-lg text-xs font-medium border border-transparent transition-colors duration-150 select-none',
               filterType === 'all'
-                ? 'bg-surface-elevated text-brand-300 border border-surface-border font-semibold shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-surface-elevated text-brand-300 border-surface-border shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-surface-elevated/40'
             )}
           >
             Todos ({expenses.length})
@@ -66,10 +76,10 @@ export const ExpenseTable: React.FC<ExpenseTableProps> = ({
             type="button"
             onClick={() => setFilterType('factura')}
             className={cn(
-              'px-3 py-1.5 rounded-lg text-xs font-medium transition-all select-none',
+              'px-3 py-1.5 rounded-lg text-xs font-medium border border-transparent transition-colors duration-150 select-none',
               filterType === 'factura'
-                ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-semibold'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-surface-elevated/40'
             )}
           >
             Facturas
@@ -79,10 +89,10 @@ export const ExpenseTable: React.FC<ExpenseTableProps> = ({
             type="button"
             onClick={() => setFilterType('transferencia')}
             className={cn(
-              'px-3 py-1.5 rounded-lg text-xs font-medium transition-all select-none',
+              'px-3 py-1.5 rounded-lg text-xs font-medium border border-transparent transition-colors duration-150 select-none',
               filterType === 'transferencia'
-                ? 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 font-semibold'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-surface-elevated/40'
             )}
           >
             Transferencias
@@ -129,7 +139,7 @@ export const ExpenseTable: React.FC<ExpenseTableProps> = ({
                 <tr
                   key={exp.id}
                   className="hover:bg-surface-elevated/40 transition-colors group cursor-pointer"
-                  onClick={() => onViewExpense?.(exp)}
+                  onClick={() => handleInspect(exp)}
                 >
                   <td className="px-4 py-3 whitespace-nowrap">
                     <Badge variant={exp.tipoDocumento}>
@@ -178,7 +188,7 @@ export const ExpenseTable: React.FC<ExpenseTableProps> = ({
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onViewExpense?.(exp);
+                        handleInspect(exp);
                       }}
                       className="p-1 h-7 w-7 rounded-lg"
                     >
