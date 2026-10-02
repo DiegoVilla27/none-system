@@ -1,0 +1,76 @@
+'use client';
+
+import React, { useState } from 'react';
+import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
+import { ExpenseTable } from '@/components/organisms/ExpenseTable/ExpenseTable';
+import { SideBySideViewer } from '@/components/organisms/SideBySideViewer/SideBySideViewer';
+import { Heading, Text } from '@/components/atoms/Typography/Typography';
+import { Button } from '@/components/atoms/Button/Button';
+import { MOCK_EXPENSES } from '@/mocks/expense.mocks';
+import { Expense } from '@/types/expense.types';
+import { ReceiptText, ArrowLeft, Download } from 'lucide-react';
+
+export default function ExpensesPage() {
+  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+
+  return (
+    <DashboardLayout>
+      <div className="flex flex-col gap-8">
+        {/* Cabecera */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-surface-border pb-6">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <ReceiptText className="w-4 h-4 text-brand-400" />
+              <Text variant="small" className="text-brand-300 font-mono tracking-wider uppercase font-semibold">
+                Historial Contable · Colombia (COP)
+              </Text>
+            </div>
+            <Heading level={1}>Libro de Comprobantes & Gastos</Heading>
+            <Text variant="body" className="text-slate-400 mt-1">
+              Registro histórico consolidado de todas tus facturas electrónicas y comprobantes bancarios.
+            </Text>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="md"
+              leftIcon={<Download className="w-4 h-4" />}
+            >
+              Exportar Todo (.xlsx)
+            </Button>
+          </div>
+        </div>
+
+        {/* Si hay un gasto seleccionado para inspección */}
+        {selectedExpense ? (
+          <div className="flex flex-col gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedExpense(null)}
+              leftIcon={<ArrowLeft className="w-4 h-4" />}
+              className="w-fit"
+            >
+              Volver al Listado General
+            </Button>
+
+            <SideBySideViewer
+              initialExpense={selectedExpense}
+              onSave={() => setSelectedExpense(null)}
+              onCancel={() => setSelectedExpense(null)}
+            />
+          </div>
+        ) : (
+          /* Listado Principal de la Tabla */
+          <div className="flex flex-col gap-4">
+            <ExpenseTable
+              expenses={MOCK_EXPENSES}
+              onViewExpense={(exp) => setSelectedExpense(exp)}
+            />
+          </div>
+        )}
+      </div>
+    </DashboardLayout>
+  );
+}

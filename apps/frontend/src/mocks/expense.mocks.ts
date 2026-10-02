@@ -1,0 +1,159 @@
+import { Expense, MonthlySummary } from '../types/expense.types';
+
+/**
+ * Datos mockeados representativos de gastos y transacciones en Colombia (COP).
+ * Incluyen los casos reales probados con Factura Alkomprar y Comprobante Wompi / Bancolombia.
+ */
+export const MOCK_EXPENSES: Expense[] = [
+  {
+    id: 'exp-alkomprar-01',
+    tipoDocumento: 'factura',
+    comercio: 'ALKOMPRAR',
+    entidadFinanciera: 'REDEBAN CR',
+    cifNif: '890900943-1',
+    numeroReferencia: 'X9722525757',
+    fecha: '2025-10-29',
+    subtotal: 4032731,
+    impuestos: 766219,
+    total: 4798950,
+    moneda: 'COP',
+    categoria: 'Tecnología',
+    lineasArticulos: [
+      {
+        descripcion: 'TV SAMSUNG 55" 55Q7F+ BarC400',
+        precio: 2199900,
+        cantidad: 1,
+      },
+      {
+        descripcion: 'L/S SAM CF 11,5Kg WD11T4046B"I',
+        precio: 2599050,
+        cantidad: 1,
+      },
+    ],
+    confianzaExtraccion: 'alta',
+    notas: 'Factura Electrónica de Venta - Alkomprar Armenia',
+    imageUrl: 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?auto=format&fit=crop&w=800&q=80',
+    imageOriginalName: 'factura-alkomprar.jpg',
+    estado: 'confirmado',
+    createdAt: '2025-10-29T17:16:20.000Z',
+    updatedAt: '2025-10-29T17:16:20.000Z',
+  },
+  {
+    id: 'exp-wompi-02',
+    tipoDocumento: 'transferencia',
+    comercio: 'FUNERARIA SAN VICENT',
+    entidadFinanciera: 'Bancolombia / Wompi',
+    cifNif: null,
+    numeroReferencia: '42756870',
+    fecha: '2026-09-26',
+    subtotal: null,
+    impuestos: null,
+    total: 50000,
+    moneda: 'COP',
+    categoria: 'Hogar y Servicios',
+    lineasArticulos: [
+      {
+        descripcion: 'Recaudo de factura - FUNERARIA SAN VICENT',
+        precio: 50000,
+        cantidad: 1,
+      },
+    ],
+    confianzaExtraccion: 'alta',
+    notas: 'Convenio: 00128, Corresponsal: Districampo Armenia Quico (Aprob: 807611)',
+    imageUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=800&q=80',
+    imageOriginalName: 'comprobante-wompi.png',
+    estado: 'confirmado',
+    createdAt: '2026-09-26T11:29:56.000Z',
+    updatedAt: '2026-09-26T11:29:56.000Z',
+  },
+  {
+    id: 'exp-terpel-03',
+    tipoDocumento: 'factura',
+    comercio: 'ESTACION TERPEL ARMENIA',
+    entidadFinanciera: 'Bancolombia Débito',
+    cifNif: '800149695-1',
+    numeroReferencia: 'TERP-88412',
+    fecha: '2026-10-01',
+    subtotal: 100840,
+    impuestos: 19160,
+    total: 120000,
+    moneda: 'COP',
+    categoria: 'Transporte',
+    lineasArticulos: [
+      {
+        descripcion: 'Gasolina Corriente - 7.5 Galones',
+        precio: 120000,
+        cantidad: 1,
+      },
+    ],
+    confianzaExtraccion: 'alta',
+    notas: null,
+    imageUrl: 'https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&w=800&q=80',
+    imageOriginalName: 'recibo-gasolina.jpg',
+    estado: 'confirmado',
+    createdAt: '2026-10-01T08:30:00.000Z',
+    updatedAt: '2026-10-01T08:30:00.000Z',
+  },
+  {
+    id: 'exp-exito-04',
+    tipoDocumento: 'factura',
+    comercio: 'ÉXITO VECINO',
+    entidadFinanciera: 'Nequi',
+    cifNif: '890900608-9',
+    numeroReferencia: 'EX-992144',
+    fecha: '2026-09-28',
+    subtotal: 285714,
+    impuestos: 54286,
+    total: 340000,
+    moneda: 'COP',
+    categoria: 'Supermercado',
+    lineasArticulos: [
+      { descripcion: 'Mercado Quincenal Víveres y Carnes', precio: 340000, cantidad: 1 },
+    ],
+    confianzaExtraccion: 'alta',
+    notas: null,
+    imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80',
+    imageOriginalName: 'ticket-exito.jpg',
+    estado: 'confirmado',
+    createdAt: '2026-09-28T19:45:00.000Z',
+    updatedAt: '2026-09-28T19:45:00.000Z',
+  },
+];
+
+/**
+ * Resumen mensual mockeado calculado con el gasto total en COP y presupuesto objetivo.
+ */
+export const MOCK_MONTHLY_SUMMARY: MonthlySummary = {
+  year: 2026,
+  month: 9,
+  totalGastado: 5308950,
+  presupuesto: 6000000,
+  porcentajePresupuesto: 88,
+  numGastos: 4,
+  categorias: [
+    {
+      categoria: 'Tecnología',
+      total: 4798950,
+      porcentaje: 90,
+      numTickets: 1,
+    },
+    {
+      categoria: 'Supermercado',
+      total: 340000,
+      porcentaje: 6,
+      numTickets: 1,
+    },
+    {
+      categoria: 'Transporte',
+      total: 120000,
+      porcentaje: 2,
+      numTickets: 1,
+    },
+    {
+      categoria: 'Hogar y Servicios',
+      total: 50000,
+      porcentaje: 1,
+      numTickets: 1,
+    },
+  ],
+};
