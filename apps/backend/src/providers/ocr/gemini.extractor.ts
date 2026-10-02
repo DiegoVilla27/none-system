@@ -31,9 +31,11 @@ export class GeminiExtractor implements IOcrExtractor {
     let lastError: unknown;
 
     const modelsToTry = Array.from(new Set([
+      'gemini-3.5-flash-lite',
+      'gemini-3.1-flash-lite',
       this.primaryModel,
       'gemini-3.5-flash',
-      'gemini-flash-latest',
+      'gemini-3.7-flash',
     ]));
 
     for (const model of modelsToTry) {
@@ -88,7 +90,7 @@ export class GeminiExtractor implements IOcrExtractor {
 
     if (!rawText) {
       throw new AppError(
-        'No se pudo extraer la información del documento tras varios intentos con la IA',
+        'No logramos procesar el comprobante debido a una intermitencia temporal en el servicio de IA. Por favor verifica que el documento sea legible y vuelve a intentarlo.',
         502,
         lastError
       );

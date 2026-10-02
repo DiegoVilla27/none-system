@@ -45,7 +45,7 @@ export default function ExpensesPage() {
             <div className="flex items-center gap-2 mb-1">
               <ReceiptText className="w-4 h-4 text-brand-400" />
               <Text variant="small" className="text-brand-300 font-mono tracking-wider uppercase font-semibold">
-                Historial Contable · Colombia (COP)
+                Historial Contable
               </Text>
             </div>
             <Heading level={1}>Libro de Comprobantes & Gastos</Heading>

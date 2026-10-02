@@ -6,6 +6,65 @@ const API_BASE =
     : process.env.NEXT_PUBLIC_API_URL || '/api/v1';
 
 /**
+ * Parser seguro de respuestas HTTP para evitar errores de sintaxis JSON
+ * y transformar errores técnicos en mensajes comprensibles y amigables.
+ */
+async function parseApiResponse<T>(res: Response, fallbackMessage: string): Promise<T> {
+  let rawText = '';
+  try {
+    rawText = await res.text();
+  } catch {
+    throw new Error('No se pudo establecer conexión con el servidor. Revisa tu conexión.');
+  }
+
+  let json: { success?: boolean; data?: T; error?: { message?: string; code?: string } } | null = null;
+  if (rawText) {
+    try {
+      json = JSON.parse(rawText);
+    } catch {
+      // Respuestas que no son JSON (ej: páginas de error 502/503/500 de proxy o gateway)
+      if (res.status === 502 || res.status === 503 || res.status === 504) {
+        throw new Error(
+          'El servicio de análisis inteligente está experimentando alta demanda momentánea. Por favor espera unos segundos y vuelve a intentar.'
+        );
+      }
+      if (res.status >= 500) {
+        throw new Error(
+          'Ocurrió un inconveniente temporal en el servidor de procesamiento. Por favor intenta de nuevo en un momento.'
+        );
+      }
+      throw new Error(fallbackMessage);
+    }
+  }
+
+  if (!res.ok || !json?.success) {
+    const rawMsg = json?.error?.message || fallbackMessage;
+
+    // Normalización de mensajes técnicos a lenguaje amigable
+    if (
+      rawMsg.includes('varios intentos') ||
+      rawMsg.includes('503') ||
+      rawMsg.includes('502') ||
+      rawMsg.includes('high demand')
+    ) {
+      throw new Error(
+        'El servicio de lectura inteligente está experimentando congestión temporal. Por favor espera unos segundos y reintenta.'
+      );
+    }
+
+    if (rawMsg.includes('tamaño') || rawMsg.includes('5 MB') || rawMsg.includes('FILE_TOO_LARGE')) {
+      throw new Error(
+        'El archivo supera el tamaño máximo permitido de 5 MB. Por favor sube una imagen o PDF más ligero.'
+      );
+    }
+
+    throw new Error(rawMsg);
+  }
+
+  return json.data as T;
+}
+
+/**
  * Filtra únicamente los campos permitidos por el DTO de actualización del backend.
  */
 export function sanitizeUpdateExpenseDto(expense: Partial<Expense>) {
@@ -29,7 +88,7 @@ export function sanitizeUpdateExpenseDto(expense: Partial<Expense>) {
 }
 
 /**
- * Escanea un archivo de comprobante o factura con Gemini 3.5 Flash en el backend.
+ * Escanea un archivo de comprobante o factura con IA en el backend.
  */
 export async function scanExpense(file: File, tipo: DocumentType): Promise<Expense> {
   const formData = new FormData();
@@ -41,12 +100,10 @@ export async function scanExpense(file: File, tipo: DocumentType): Promise<Expen
     body: formData,
   });
 
-  const json = await res.json();
-  if (!res.ok || !json.success) {
-    throw new Error(json.error?.message || 'Error al procesar el comprobante con IA');
-  }
-
-  return json.data;
+  return parseApiResponse<Expense>(
+    res,
+    'No se pudo procesar el comprobante. Por favor verifica que la imagen sea legible y vuelve a intentarlo.'
+  );
 }
 
 /**
@@ -66,12 +123,7 @@ export async function getExpenses(filter?: {
     cache: 'no-store',
   });
 
-  const json = await res.json();
-  if (!res.ok || !json.success) {
-    throw new Error(json.error?.message || 'Error al obtener los gastos');
-  }
-
-  return json.data;
+  return parseApiResponse<Expense[]>(res, 'Error al obtener la lista de comprobantes.');
 }
 
 /**
@@ -82,12 +134,7 @@ export async function getExpenseById(id: string): Promise<Expense> {
     cache: 'no-store',
   });
 
-  const json = await res.json();
-  if (!res.ok || !json.success) {
-    throw new Error(json.error?.message || `Gasto con ID ${id} no encontrado`);
-  }
-
-  return json.data;
+  return parseApiResponse<Expense>(res, `El comprobante con ID ${id} no fue encontrado.`);
 }
 
 /**
@@ -104,12 +151,7 @@ export async function updateExpense(id: string, updates: Partial<Expense>): Prom
     body: JSON.stringify(sanitized),
   });
 
-  const json = await res.json();
-  if (!res.ok || !json.success) {
-    throw new Error(json.error?.message || 'Error al actualizar el gasto');
-  }
-
-  return json.data;
+  return parseApiResponse<Expense>(res, 'Error al guardar los cambios en el comprobante.');
 }
 
 /**
@@ -120,10 +162,7 @@ export async function deleteExpense(id: string): Promise<void> {
     method: 'DELETE',
   });
 
-  const json = await res.json();
-  if (!res.ok || !json.success) {
-    throw new Error(json.error?.message || 'Error al eliminar el gasto');
-  }
+  await parseApiResponse<{ message: string }>(res, 'Error al eliminar el comprobante.');
 }
 
 /**
@@ -139,10 +178,5 @@ export async function getMonthlySummary(year?: number, month?: number): Promise<
     cache: 'no-store',
   });
 
-  const json = await res.json();
-  if (!res.ok || !json.success) {
-    throw new Error(json.error?.message || 'Error al obtener el resumen mensual');
-  }
-
-  return json.data;
+  return parseApiResponse<MonthlySummary>(res, 'Error al obtener el resumen contable del mes.');
 }

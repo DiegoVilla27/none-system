@@ -93,7 +93,7 @@ export default function HomePage() {
             <div className="flex items-center gap-2 mb-1">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <Text variant="small" className="text-brand-300 font-mono tracking-wider uppercase font-semibold">
-                Control Contable en Vivo · Colombia (COP)
+                Control Contable en Vivo
               </Text>
             </div>
             <Heading level={1}>Panel de Control Financiero</Heading>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { FileUploader } from '@/components/molecules/FileUploader/FileUploader';
@@ -9,25 +9,77 @@ import { Heading, Text } from '@/components/atoms/Typography/Typography';
 import { Button } from '@/components/atoms/Button/Button';
 import { Expense, DocumentType } from '@/types/expense.types';
 import { scanExpense, updateExpense } from '@/lib/api';
-import { Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
+import { Sparkles, RefreshCw, AlertCircle, RotateCcw } from 'lucide-react';
 
 export default function ScanPage() {
   const router = useRouter();
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
+  const [scanStatus, setScanStatus] = useState('Digitalizando comprobante...');
   const [error, setError] = useState<string | null>(null);
 
+  // Guardar referencia para permitir reintentos con un clic
+  const lastAttemptRef = useRef<{ file: File; type: DocumentType } | null>(null);
+
+  const startProgressSimulation = () => {
+    setScanProgress(15);
+    setScanStatus('Preparando y optimizando archivo...');
+
+    const stages = [
+      { progress: 35, status: 'Iniciando lectura inteligente con IA...', delay: 600 },
+      { progress: 65, status: 'Extrayendo valores, NIT, comercio y fecha...', delay: 1400 },
+      { progress: 85, status: 'Estructurando información en Pesos Colombianos (COP)...', delay: 2400 },
+      { progress: 94, status: 'Finalizando análisis...', delay: 3500 },
+    ];
+
+    const timeouts: NodeJS.Timeout[] = [];
+    stages.forEach((stage) => {
+      const timeout = setTimeout(() => {
+        setScanProgress((prev) => Math.max(prev, stage.progress));
+        setScanStatus(stage.status);
+      }, stage.delay);
+      timeouts.push(timeout);
+    });
+
+    return () => timeouts.forEach(clearTimeout);
+  };
+
   const handleFileSelect = async (file: File, type: DocumentType) => {
+    lastAttemptRef.current = { file, type };
+    setError(null);
+    setIsScanning(true);
+
+    const cleanupProgress = startProgressSimulation();
+
     try {
-      setIsScanning(true);
-      setError(null);
       const scanned = await scanExpense(file, type);
-      setSelectedExpense(scanned);
+      cleanupProgress();
+      setScanProgress(100);
+      setScanStatus('¡Comprobante leído con éxito!');
+
+      // Breve pausa para mostrar el 100% completado antes de pasar al visor
+      setTimeout(() => {
+        setSelectedExpense(scanned);
+        setIsScanning(false);
+        setScanProgress(0);
+      }, 350);
     } catch (err) {
-      console.error('OCR Scanning failed:', err);
-      setError(err instanceof Error ? err.message : 'Error al procesar el archivo');
-    } finally {
+      cleanupProgress();
       setIsScanning(false);
+      setScanProgress(0);
+      console.error('OCR Scanning failed:', err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No logramos procesar el comprobante. Por favor verifica que la imagen sea legible y vuelve a intentarlo.'
+      );
+    }
+  };
+
+  const handleRetryLastScan = () => {
+    if (lastAttemptRef.current) {
+      handleFileSelect(lastAttemptRef.current.file, lastAttemptRef.current.type);
     }
   };
 
@@ -56,7 +108,7 @@ export default function ScanPage() {
             <div className="flex items-center gap-2 mb-1">
               <Sparkles className="w-4 h-4 text-brand-400" />
               <Text variant="small" className="text-brand-300 font-mono tracking-wider uppercase font-semibold">
-                Motor IA Multimodal · Gemini 3.5 Flash
+                Digitalización Contable con IA
               </Text>
             </div>
             <Heading level={1}>Escanear Nuevo Documento</Heading>
@@ -80,11 +132,35 @@ export default function ScanPage() {
           )}
         </div>
 
-        {/* Mensaje de Error */}
+        {/* Mensaje de Error Amigable */}
         {error && (
-          <div className="p-4 rounded-xl bg-surface-card border border-rose-500/30 flex items-center gap-3 text-rose-300 text-xs">
-            <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
-            <span>{error}</span>
+          <div className="p-4 rounded-xl bg-surface-card border border-rose-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-start sm:items-center gap-3 text-rose-300">
+              <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5 sm:mt-0" />
+              <span>{error}</span>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+              {lastAttemptRef.current && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleRetryLastScan}
+                  leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
+                  className="text-xs"
+                >
+                  Reintentar
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setError(null)}
+                className="text-xs text-slate-400 hover:text-slate-200"
+              >
+                Cerrar
+              </Button>
+            </div>
           </div>
         )}
 
@@ -94,6 +170,9 @@ export default function ScanPage() {
             <FileUploader
               onFileSelect={handleFileSelect}
               isProcessing={isScanning}
+              progressPercentage={scanProgress}
+              progressStatus={scanStatus}
+              onError={(msg) => setError(msg)}
             />
           </div>
         ) : (
