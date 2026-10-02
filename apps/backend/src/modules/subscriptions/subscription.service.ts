@@ -1,12 +1,25 @@
+import { PrismaClient } from '@prisma/client';
 import {
   SubscriptionPlan,
   UserSubscription,
   PLAN_CONFIGS,
 } from './subscription.entity.js';
 
+export interface PaymentTransactionRecord {
+  reference: string;
+  amountCOP: number;
+  paymentMethod: string;
+  customerName?: string;
+  customerEmail?: string;
+  customerDocNumber?: string;
+  userId?: string;
+  status?: string;
+}
+
 export class SubscriptionService {
-  // Almacenamiento en memoria de suscripciones por número de teléfono
-  private readonly subscriptions = new Map<string, UserSubscription>();
+  private readonly inMemorySubscriptions = new Map<string, UserSubscription>();
+
+  constructor(private readonly prisma?: PrismaClient | null) {}
 
   /**
    * Obtiene el ciclo de facturación actual en formato YYYY-MM.
@@ -24,16 +37,76 @@ export class SubscriptionService {
    */
   async getOrCreateSubscription(
     phoneNumber: string,
-    name?: string
+    name?: string,
+    userId?: string
   ): Promise<UserSubscription> {
+    const cleanPhone = phoneNumber.replace(/\D/g, '');
     const currentCycle = this.getCurrentBillingCycle();
     const nowIso = new Date().toISOString();
 
-    let sub = this.subscriptions.get(phoneNumber);
+    if (this.prisma) {
+      try {
+        let record = await this.prisma.subscription.findUnique({
+          where: { phoneNumber: cleanPhone },
+        });
+
+        if (!record) {
+          record = await this.prisma.subscription.create({
+            data: {
+              phoneNumber: cleanPhone,
+              name: name || null,
+              userId: userId || null,
+              plan: 'gratuito',
+              monthlyLimit: PLAN_CONFIGS.gratuito.monthlyLimit,
+              currentUsage: 0,
+              billingCycleMonth: currentCycle,
+              status: 'activo',
+            },
+          });
+        } else {
+          // Si ya comenzó un nuevo mes o vienen datos nuevos, actualizar
+          const updates: any = {};
+          if (record.billingCycleMonth !== currentCycle) {
+            updates.currentUsage = 0;
+            updates.billingCycleMonth = currentCycle;
+          }
+          if (name && record.name !== name) {
+            updates.name = name;
+          }
+          if (userId && !record.userId) {
+            updates.userId = userId;
+          }
+
+          if (Object.keys(updates).length > 0) {
+            record = await this.prisma.subscription.update({
+              where: { phoneNumber: cleanPhone },
+              data: updates,
+            });
+          }
+        }
+
+        return {
+          phoneNumber: record.phoneNumber,
+          name: record.name || undefined,
+          plan: record.plan as SubscriptionPlan,
+          monthlyLimit: record.monthlyLimit,
+          currentUsage: record.currentUsage,
+          billingCycleMonth: record.billingCycleMonth,
+          status: record.status as 'activo' | 'suspendido',
+          createdAt: record.createdAt.toISOString(),
+          updatedAt: record.updatedAt.toISOString(),
+        };
+      } catch (err) {
+        console.warn('⚠️ [Prisma] Error en getOrCreateSubscription, usando memoria fallback:', (err as Error).message);
+      }
+    }
+
+    // Fallback en memoria
+    let sub = this.inMemorySubscriptions.get(cleanPhone);
 
     if (!sub) {
       sub = {
-        phoneNumber,
+        phoneNumber: cleanPhone,
         name,
         plan: 'gratuito',
         monthlyLimit: PLAN_CONFIGS.gratuito.monthlyLimit,
@@ -43,19 +116,17 @@ export class SubscriptionService {
         createdAt: nowIso,
         updatedAt: nowIso,
       };
-      this.subscriptions.set(phoneNumber, sub);
+      this.inMemorySubscriptions.set(cleanPhone, sub);
       return sub;
     }
 
-    // Si ya comenzó un nuevo mes, reiniciar el consumo automáticamente
     if (sub.billingCycleMonth !== currentCycle) {
       sub.currentUsage = 0;
       sub.billingCycleMonth = currentCycle;
       sub.updatedAt = nowIso;
-      this.subscriptions.set(phoneNumber, sub);
+      this.inMemorySubscriptions.set(cleanPhone, sub);
     }
 
-    // Actualizar nombre si viene disponible
     if (name && sub.name !== name) {
       sub.name = name;
       sub.updatedAt = nowIso;
@@ -105,29 +176,113 @@ export class SubscriptionService {
    * Incrementa en +1 el consumo de comprobantes del usuario tras un escaneo exitoso.
    */
   async incrementUsage(phoneNumber: string): Promise<UserSubscription> {
-    const sub = await this.getOrCreateSubscription(phoneNumber);
-    sub.currentUsage += 1;
-    sub.updatedAt = new Date().toISOString();
-    this.subscriptions.set(phoneNumber, sub);
-    return sub;
+    const cleanPhone = phoneNumber.replace(/\D/g, '');
+    const currentSub = await this.getOrCreateSubscription(cleanPhone);
+
+    if (this.prisma) {
+      try {
+        const updated = await this.prisma.subscription.update({
+          where: { phoneNumber: cleanPhone },
+          data: {
+            currentUsage: { increment: 1 },
+          },
+        });
+
+        return {
+          phoneNumber: updated.phoneNumber,
+          name: updated.name || undefined,
+          plan: updated.plan as SubscriptionPlan,
+          monthlyLimit: updated.monthlyLimit,
+          currentUsage: updated.currentUsage,
+          billingCycleMonth: updated.billingCycleMonth,
+          status: updated.status as 'activo' | 'suspendido',
+          createdAt: updated.createdAt.toISOString(),
+          updatedAt: updated.updatedAt.toISOString(),
+        };
+      } catch (err) {
+        console.warn('⚠️ [Prisma] Error en incrementUsage, usando memoria:', (err as Error).message);
+      }
+    }
+
+    currentSub.currentUsage += 1;
+    currentSub.updatedAt = new Date().toISOString();
+    this.inMemorySubscriptions.set(cleanPhone, currentSub);
+    return currentSub;
   }
 
   /**
-   * Asigna un plan de suscripción a un número de teléfono (por ejemplo tras confirmar el pago).
+   * Asigna un plan de suscripción a un número de teléfono y opcionalmente registra la transacción de pago en PostgreSQL.
    */
   async upgradePlan(
     phoneNumber: string,
-    plan: SubscriptionPlan
+    plan: SubscriptionPlan,
+    transaction?: PaymentTransactionRecord
   ): Promise<UserSubscription> {
-    const sub = await this.getOrCreateSubscription(phoneNumber);
+    const cleanPhone = phoneNumber.replace(/\D/g, '');
     const config = PLAN_CONFIGS[plan];
+    await this.getOrCreateSubscription(cleanPhone);
+
+    if (this.prisma) {
+      try {
+        const updated = await this.prisma.subscription.update({
+          where: { phoneNumber: cleanPhone },
+          data: {
+            plan,
+            monthlyLimit: config.monthlyLimit,
+            status: 'activo',
+          },
+        });
+
+        if (transaction) {
+          await this.prisma.paymentTransaction.create({
+            data: {
+              phoneNumber: cleanPhone,
+              plan,
+              amountCOP: transaction.amountCOP,
+              paymentMethod: transaction.paymentMethod,
+              reference: transaction.reference,
+              status: transaction.status || 'APROBADA',
+              customerName: transaction.customerName || null,
+              customerEmail: transaction.customerEmail || null,
+              customerDocNumber: transaction.customerDocNumber || null,
+              userId: transaction.userId || null,
+            },
+          });
+        }
+
+        return {
+          phoneNumber: updated.phoneNumber,
+          name: updated.name || undefined,
+          plan: updated.plan as SubscriptionPlan,
+          monthlyLimit: updated.monthlyLimit,
+          currentUsage: updated.currentUsage,
+          billingCycleMonth: updated.billingCycleMonth,
+          status: updated.status as 'activo' | 'suspendido',
+          createdAt: updated.createdAt.toISOString(),
+          updatedAt: updated.updatedAt.toISOString(),
+        };
+      } catch (err) {
+        console.warn('⚠️ [Prisma] Error en upgradePlan, usando memoria:', (err as Error).message);
+      }
+    }
+
+    const sub = this.inMemorySubscriptions.get(cleanPhone) || {
+      phoneNumber: cleanPhone,
+      plan,
+      monthlyLimit: config.monthlyLimit,
+      currentUsage: 0,
+      billingCycleMonth: this.getCurrentBillingCycle(),
+      status: 'activo' as const,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
 
     sub.plan = plan;
     sub.monthlyLimit = config.monthlyLimit;
     sub.status = 'activo';
     sub.updatedAt = new Date().toISOString();
+    this.inMemorySubscriptions.set(cleanPhone, sub);
 
-    this.subscriptions.set(phoneNumber, sub);
     return sub;
   }
 
@@ -135,6 +290,25 @@ export class SubscriptionService {
    * Consulta todas las suscripciones registradas (útil para auditoría / admin).
    */
   async getAllSubscriptions(): Promise<UserSubscription[]> {
-    return Array.from(this.subscriptions.values());
+    if (this.prisma) {
+      try {
+        const records = await this.prisma.subscription.findMany();
+        return records.map((r) => ({
+          phoneNumber: r.phoneNumber,
+          name: r.name || undefined,
+          plan: r.plan as SubscriptionPlan,
+          monthlyLimit: r.monthlyLimit,
+          currentUsage: r.currentUsage,
+          billingCycleMonth: r.billingCycleMonth,
+          status: r.status as 'activo' | 'suspendido',
+          createdAt: r.createdAt.toISOString(),
+          updatedAt: r.updatedAt.toISOString(),
+        }));
+      } catch (err) {
+        console.warn('⚠️ [Prisma] Error en getAllSubscriptions, usando memoria:', (err as Error).message);
+      }
+    }
+
+    return Array.from(this.inMemorySubscriptions.values());
   }
 }

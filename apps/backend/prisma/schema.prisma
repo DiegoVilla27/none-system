@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                        String              @id @default(uuid())
+  email                     String              @unique
+  passwordHash              String
+  name                      String
+  phoneNumber               String              @unique
+  role                      String              @default("user") // user | admin | contador
+  emailVerified             Boolean             @default(false)
+  verificationToken         String?
+  verificationTokenExpires  DateTime?
+  resetPasswordToken        String?
+  resetPasswordExpires      DateTime?
+  habeasDataAccepted        Boolean             @default(true)
+  habeasDataAcceptedAt      DateTime            @default(now())
+  habeasDataIp              String?
+  habeasDataVersion         String              @default("Ley-1581-2012")
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+
+  subscription              Subscription?
+  expenses                  Expense[]
+  transactions              PaymentTransaction[]
+
+  @@map("users")
+}
+
+model Subscription {
+  id                String    @id @default(uuid())
+  userId            String?   @unique
+  user              User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phoneNumber       String    @unique
+  name              String?
+  plan              String    @default("gratuito") // gratuito | basico | pro | empresarial
+  monthlyLimit      Int       @default(10)
+  currentUsage      Int       @default(0)
+  billingCycleMonth String    // YYYY-MM
+  status            String    @default("activo") // activo | suspendido
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("subscriptions")
+}
+
+model Expense {
+  id                  String    @id @default(uuid())
+  userId              String?
+  user                User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  tipoDocumento       String    // factura | transferencia
+  comercio            String
+  entidadFinanciera   String?
+  cifNif              String?
+  nit                 String?
+  numeroReferencia    String?
+  cufe                String?   // Código Único de Factura Electrónica (DIAN)
+  fecha               String    // YYYY-MM-DD
+  subtotal            Float?
+  baseGravable        Float?
+  impuestos           Float?
+  iva                 Float?    // IVA (19% o 5%)
+  impoconsumo         Float?    // Impuesto Nacional al Consumo (8%)
+  total               Float     // Total COP
+  moneda              String    @default("COP")
+  categoria           String
+  lineasArticulos     Json      // Desglose de artículos
+  confianzaExtraccion String    @default("alta") // alta | media | baja
+  notas               String?
+  imageUrl            String
+  imageOriginalName   String
+  estado              String    @default("confirmado") // borrador | confirmado
+  isDianCompliant     Boolean   @default(false)
+  encryptedAtRest     Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([fecha])
+  @@index([tipoDocumento])
+  @@map("expenses")
+}
+
+model PaymentTransaction {
+  id                String    @id @default(uuid())
+  userId            String?
+  user              User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  phoneNumber       String
+  plan              String    // basico | pro | empresarial
+  amountCOP         Float
+  paymentMethod     String    // pse | card | nequi
+  reference         String    @unique
+  status            String    @default("APROBADA") // APROBADA | PENDIENTE | RECHAZADA
+  customerName      String?
+  customerEmail     String?
+  customerDocNumber String?
+  paidAt            DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+
+  @@index([phoneNumber])
+  @@map("payment_transactions")
+}

@@ -78,14 +78,22 @@ export class SubscriptionController {
       const cleanPhone = phoneNumber.replace(/\D/g, '');
       const planConfig = PLAN_CONFIGS[validPlan];
 
-      // Actualizar plan del usuario en el servicio
-      const updatedSub = await this.subscriptionService.upgradePlan(cleanPhone, validPlan);
+      // Referencia de pago colombiana única (estilo Wompi/Bold)
+      const reference = `NONE-${validPlan.toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
+
+      // Actualizar plan del usuario en el servicio y registrar la transacción en DB
+      const updatedSub = await this.subscriptionService.upgradePlan(cleanPhone, validPlan, {
+        reference,
+        amountCOP: planConfig.priceCOP,
+        paymentMethod,
+        customerName: customerName || undefined,
+        customerEmail: customerEmail || undefined,
+        customerDocNumber: customerDocNumber || undefined,
+      });
+
       if (customerName) {
         await this.subscriptionService.getOrCreateSubscription(cleanPhone, customerName);
       }
-
-      // Referencia de pago colombiana única (estilo Wompi/Bold)
-      const reference = `NONE-${validPlan.toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
 
       res.status(200).json({
         status: 'success',
