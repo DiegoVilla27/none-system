@@ -6,7 +6,8 @@
     "dev:backend": "pnpm --filter @none-system/backend dev",
     "build:backend": "pnpm --filter @none-system/backend build",
     "dev:frontend": "pnpm --filter @none-system/frontend dev",
-    "build:frontend": "pnpm --filter @none-system/frontend build"
+    "build:frontend": "pnpm --filter @none-system/frontend build",
+    "test": "pnpm --filter @none-system/frontend test"
   },
   "keywords": [],
   "author": "",

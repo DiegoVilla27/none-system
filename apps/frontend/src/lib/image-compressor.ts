@@ -40,8 +40,19 @@ export async function validateAndCompressFile(file: File): Promise<CompressionRe
     };
   }
 
-  // 3. Si no es imagen soportada, retornar
+  // 3. Si no es imagen soportada o el entorno no soporta Canvas 2D (ej. Node/JSDOM), retornar archivo original
   if (!file.type.startsWith('image/')) {
+    return {
+      file,
+      originalSize: file.size,
+      compressedSize: file.size,
+      savedPercentage: 0,
+      wasCompressed: false,
+    };
+  }
+
+  const testCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+  if (!testCanvas || !testCanvas.getContext || !testCanvas.getContext('2d')) {
     return {
       file,
       originalSize: file.size,
