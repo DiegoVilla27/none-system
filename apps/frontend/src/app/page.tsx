@@ -9,7 +9,6 @@ import { ExpenseTable } from '@/components/organisms/ExpenseTable/ExpenseTable';
 import { MonthlySummaryCard } from '@/components/organisms/MonthlySummaryCard/MonthlySummaryCard';
 import { Button } from '@/components/atoms/Button/Button';
 import { Heading, Text } from '@/components/atoms/Typography/Typography';
-import { MOCK_EXPENSES, MOCK_MONTHLY_SUMMARY } from '@/mocks/expense.mocks';
 import { Expense, MonthlySummary } from '@/types/expense.types';
 import { getExpenses, getMonthlySummary } from '@/lib/api';
 import { formatCOP } from '@/lib/utils';
@@ -24,8 +23,18 @@ import {
 
 export default function HomePage() {
   const router = useRouter();
-  const [expenses, setExpenses] = useState<Expense[]>(MOCK_EXPENSES);
-  const [summary, setSummary] = useState<MonthlySummary>(MOCK_MONTHLY_SUMMARY);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [summary, setSummary] = useState<MonthlySummary>({
+    year: 2026,
+    month: 10,
+    totalGastado: 0,
+    totalFacturas: 0,
+    totalTransferencias: 0,
+    numFacturas: 0,
+    numTransferencias: 0,
+    numGastos: 0,
+    categorias: [],
+  });
   const [isLoading, setIsLoading] = useState(true);
 
   const loadDashboardData = async () => {
@@ -35,10 +44,22 @@ export default function HomePage() {
         getExpenses(),
         getMonthlySummary(),
       ]);
-      setExpenses(expensesData);
-      setSummary(summaryData);
+      setExpenses(expensesData || []);
+      setSummary(
+        summaryData || {
+          year: 2026,
+          month: 10,
+          totalGastado: 0,
+          totalFacturas: 0,
+          totalTransferencias: 0,
+          numFacturas: 0,
+          numTransferencias: 0,
+          numGastos: 0,
+          categorias: [],
+        }
+      );
     } catch (err) {
-      console.warn('Backend load failed, fallback to initial state:', err);
+      console.warn('Backend load failed:', err);
     } finally {
       setIsLoading(false);
     }
@@ -121,13 +142,13 @@ export default function HomePage() {
             />
 
             <StatCard
-              title="Facturas Comerciales"
-              value={`${summary.numFacturas || facturas.length} Facturas`}
-              icon={<FileText className="w-5 h-5 text-cyan-400" />}
-              subtext={`Total: ${formatCOP(summary.totalFacturas || totalFacturas)} en compras`}
+              title="Promedio por Soporte"
+              value={formatCOP(promedio)}
+              icon={<Calculator className="w-5 h-5 text-emerald-400" />}
+              subtext="Monto promedio por transacción"
               badge={
-                <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 whitespace-nowrap shrink-0">
-                  Comercial
+                <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 whitespace-nowrap shrink-0">
+                  Promedio
                 </span>
               }
             />
@@ -145,13 +166,13 @@ export default function HomePage() {
             />
 
             <StatCard
-              title="Promedio por Soporte"
-              value={formatCOP(promedio)}
-              icon={<Calculator className="w-5 h-5 text-emerald-400" />}
-              subtext="Monto promedio por transacción"
+              title="Facturas Comerciales"
+              value={`${summary.numFacturas || facturas.length} Facturas`}
+              icon={<FileText className="w-5 h-5 text-cyan-400" />}
+              subtext={`Total: ${formatCOP(summary.totalFacturas || totalFacturas)} en compras`}
               badge={
-                <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 whitespace-nowrap shrink-0">
-                  Promedio
+                <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 whitespace-nowrap shrink-0">
+                  Comercial
                 </span>
               }
             />

@@ -130,8 +130,19 @@ export const ExpenseTable: React.FC<ExpenseTableProps> = ({
           <tbody className="divide-y divide-surface-border">
             {filteredExpenses.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
-                  No se encontraron registros que coincidan con los filtros.
+                <td colSpan={8} className="px-4 py-12 text-center text-slate-400">
+                  <div className="flex flex-col items-center justify-center gap-1.5 max-w-sm mx-auto">
+                    <p className="text-sm font-medium text-slate-300">
+                      {expenses.length === 0
+                        ? 'No hay comprobantes registrados aún'
+                        : 'No se encontraron registros con los filtros seleccionados'}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {expenses.length === 0
+                        ? 'Empieza escaneando una factura comercial o una transferencia bancaria.'
+                        : 'Intenta cambiar de pestaña o limpiar el campo de búsqueda.'}
+                    </p>
+                  </div>
                 </td>
               </tr>
             ) : (

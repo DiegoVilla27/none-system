@@ -9,7 +9,6 @@ import { Heading, Text } from '@/components/atoms/Typography/Typography';
 import { Button } from '@/components/atoms/Button/Button';
 import { Expense } from '@/types/expense.types';
 import { getExpenses } from '@/lib/api';
-import { MOCK_EXPENSES } from '@/mocks/expense.mocks';
 import { ReceiptText, Plus, RefreshCw, Download } from 'lucide-react';
 
 export default function ExpensesPage() {
@@ -23,11 +22,11 @@ export default function ExpensesPage() {
       setIsLoading(true);
       setError(null);
       const data = await getExpenses();
-      setExpenses(data);
+      setExpenses(data || []);
     } catch (err) {
-      console.warn('Backend expenses fetch failed, using fallback:', err);
-      setError('No se pudo conectar con el servidor. Mostrando datos de respaldo.');
-      setExpenses(MOCK_EXPENSES);
+      console.warn('Backend expenses fetch failed:', err);
+      setError('No se pudo conectar con el servidor.');
+      setExpenses([]);
     } finally {
       setIsLoading(false);
     }

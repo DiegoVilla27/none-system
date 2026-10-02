@@ -127,28 +127,34 @@ export const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
             Distribución por Categorías
           </span>
 
-          <div className="flex flex-col gap-2">
-            {summary.categorias.map((cat) => {
-              const emoji = categoryEmojis[cat.categoria] || '📌';
-              return (
-                <div key={cat.categoria} className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="flex items-center gap-1.5 text-slate-200 truncate">
-                      <span>{emoji}</span>
-                      <span className="truncate">{cat.categoria}</span>
-                    </span>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-slate-400 font-mono text-[11px]">{cat.porcentaje}%</span>
-                      <span className="font-mono font-semibold text-cyan-300 text-[11px]">
-                        {formatCOP(cat.total)}
+          {summary.categorias.length === 0 ? (
+            <div className="py-4 text-center text-xs text-slate-500 rounded-lg bg-surface-elevated/40 border border-surface-border/50">
+              Sin movimientos categorizados este mes
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {summary.categorias.map((cat) => {
+                const emoji = categoryEmojis[cat.categoria] || '📌';
+                return (
+                  <div key={cat.categoria} className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="flex items-center gap-1.5 text-slate-200 truncate">
+                        <span>{emoji}</span>
+                        <span className="truncate">{cat.categoria}</span>
                       </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-slate-400 font-mono text-[11px]">{cat.porcentaje}%</span>
+                        <span className="font-mono font-semibold text-cyan-300 text-[11px]">
+                          {formatCOP(cat.total)}
+                        </span>
+                      </div>
                     </div>
+                    <ProgressBar percentage={cat.porcentaje} size="sm" />
                   </div>
-                  <ProgressBar percentage={cat.porcentaje} size="sm" />
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
