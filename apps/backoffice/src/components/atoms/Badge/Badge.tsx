@@ -38,6 +38,10 @@ export const Badge: React.FC<BadgeProps> = ({
       badge: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30',
       dot: 'bg-indigo-400',
     },
+    manual: {
+      badge: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
+      dot: 'bg-amber-400',
+    },
     // Niveles de confianza
     alta: {
       badge: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',

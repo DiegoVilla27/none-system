@@ -1,12 +1,19 @@
-import { PrismaClient } from '@prisma/client';
-import { Expense, ExpenseCategory, ExtractionConfidence, ExpenseStatus, DocumentType } from '../entities/expense.entity.js';
-import { FilterExpenseDto } from '../dtos/expense.dto.js';
-import { IExpenseRepository } from './expense.repository.interface.js';
+import { PrismaClient, Prisma } from '@prisma/client';
+import {
+  Expense,
+  ExpenseCategory,
+  ExtractionConfidence,
+  ExpenseStatus,
+  DocumentType,
+  ExpenseItem,
+  ExpenseSource,
+} from '../entities/expense.entity.js';
+import { IExpenseRepository, ExpenseQuery, MonthAggregate } from './expense.repository.interface.js';
 
 export class PrismaExpenseRepository implements IExpenseRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  private mapToEntity(record: any): Expense {
+  private mapToEntity(record: Prisma.ExpenseGetPayload<object>): Expense {
     return {
       id: record.id,
       userId: record.userId || undefined,
@@ -26,11 +33,13 @@ export class PrismaExpenseRepository implements IExpenseRepository {
       total: record.total,
       moneda: 'COP',
       categoria: record.category as ExpenseCategory,
-      lineasArticulos: Array.isArray(record.lineItems) ? record.lineItems : [],
+      lineasArticulos: Array.isArray(record.lineItems) ? (record.lineItems as unknown as ExpenseItem[]) : [],
       confianzaExtraccion: record.extractionConfidence as ExtractionConfidence,
       notas: record.notes,
       imageUrl: record.imageUrl,
       imageOriginalName: record.imageOriginalName,
+      source: record.source as ExpenseSource,
+      fileHash: record.fileHash,
       estado: record.status as ExpenseStatus,
       isDianCompliant: record.isDianCompliant,
       encryptedAtRest: record.encryptedAtRest,
@@ -59,14 +68,16 @@ export class PrismaExpenseRepository implements IExpenseRepository {
         total: expense.total,
         currency: expense.moneda,
         category: expense.categoria,
-        lineItems: expense.lineasArticulos as any,
+        lineItems: expense.lineasArticulos as unknown as Prisma.InputJsonValue,
         extractionConfidence: expense.confianzaExtraccion,
         notes: expense.notas || null,
-        imageUrl: expense.imageUrl,
-        imageOriginalName: expense.imageOriginalName,
+        imageUrl: expense.imageUrl ?? null,
+        imageOriginalName: expense.imageOriginalName ?? null,
+        source: expense.source ?? 'web',
+        fileHash: expense.fileHash ?? null,
         status: expense.estado,
-        isDianCompliant: expense.isDianCompliant || false,
-        encryptedAtRest: expense.encryptedAtRest || true,
+        isDianCompliant: expense.isDianCompliant ?? false,
+        encryptedAtRest: expense.encryptedAtRest ?? false,
       },
     });
 
@@ -80,15 +91,29 @@ export class PrismaExpenseRepository implements IExpenseRepository {
     return record ? this.mapToEntity(record) : null;
   }
 
-  async findAll(filter?: FilterExpenseDto): Promise<Expense[]> {
-    const where: any = {};
+  async findByImageUrl(imageUrl: string): Promise<Expense | null> {
+    const record = await this.prisma.expense.findFirst({ where: { imageUrl } });
+    return record ? this.mapToEntity(record) : null;
+  }
+
+  async findAll(filter?: ExpenseQuery): Promise<Expense[]> {
+    const where: Prisma.ExpenseWhereInput = {};
 
     if (filter) {
       if (filter.userId) {
-        where.OR = [
-          { userId: filter.userId },
-          { userId: null }, // Comprobantes globales o públicos
-        ];
+        where.userId = filter.userId;
+      }
+      if (filter.fechaFrom || filter.fechaTo) {
+        where.expenseDate = {
+          ...(filter.fechaFrom ? { gte: filter.fechaFrom } : {}),
+          ...(filter.fechaTo ? { lte: filter.fechaTo } : {}),
+        };
+      }
+      if (filter.createdFrom || filter.createdTo) {
+        where.createdAt = {
+          ...(filter.createdFrom ? { gte: filter.createdFrom } : {}),
+          ...(filter.createdTo ? { lt: filter.createdTo } : {}),
+        };
       }
       if (filter.tipoDocumento) {
         where.documentType = filter.tipoDocumento;
@@ -120,21 +145,49 @@ export class PrismaExpenseRepository implements IExpenseRepository {
 
     const records = await this.prisma.expense.findMany({
       where,
-      orderBy: {
-        expenseDate: 'desc',
-      },
+      orderBy: [{ expenseDate: 'desc' }, { createdAt: 'desc' }],
+      ...(filter?.limit ? { take: filter.limit } : {}),
     });
 
     return records.map((r) => this.mapToEntity(r));
   }
 
+  async findDuplicateCandidates(
+    userId: string,
+    criteria: { fileHash?: string | null; cufe?: string | null; total?: number }
+  ): Promise<Expense[]> {
+    const or: Prisma.ExpenseWhereInput[] = [];
+    if (criteria.fileHash) or.push({ fileHash: criteria.fileHash });
+    if (criteria.cufe) or.push({ cufe: criteria.cufe });
+    if (criteria.total !== undefined) or.push({ total: criteria.total });
+    if (or.length === 0) return [];
+    const records = await this.prisma.expense.findMany({
+      where: { userId, OR: or },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+    return records.map((r) => this.mapToEntity(r));
+  }
+
+  async aggregateByMonth(userId: string, options: { year?: number } = {}): Promise<MonthAggregate[]> {
+    const yearPrefix = options.year ? `${options.year}-%` : '%';
+    const rows = await this.prisma.$queryRaw<Array<{ month: string; count: number; total: number }>>`
+      SELECT substring("expense_date", 1, 7) AS month, count(*)::int AS count, COALESCE(sum("total"), 0)::float AS total
+      FROM "expenses"
+      WHERE "user_id" = ${userId} AND "expense_date" LIKE ${yearPrefix}
+      GROUP BY 1
+      ORDER BY 1 DESC`;
+    return rows.map((r) => ({ month: r.month, count: Number(r.count), total: Number(r.total) }));
+  }
+
   async update(id: string, updates: Partial<Expense>): Promise<Expense | null> {
-    const data: any = {};
+    const data: Prisma.ExpenseUpdateInput = {};
 
     if (updates.tipoDocumento !== undefined) data.documentType = updates.tipoDocumento;
     if (updates.comercio !== undefined) data.merchant = updates.comercio;
     if (updates.entidadFinanciera !== undefined) data.financialEntity = updates.entidadFinanciera;
     if (updates.nit !== undefined) data.taxId = updates.nit;
+    else if (updates.cifNif !== undefined) data.taxId = updates.cifNif;
     if (updates.numeroReferencia !== undefined) data.referenceNumber = updates.numeroReferencia;
     if (updates.cufe !== undefined) data.cufe = updates.cufe;
     if (updates.fecha !== undefined) data.expenseDate = updates.fecha;
@@ -145,7 +198,7 @@ export class PrismaExpenseRepository implements IExpenseRepository {
     if (updates.impoconsumo !== undefined) data.consumptionTax = updates.impoconsumo;
     if (updates.total !== undefined) data.total = updates.total;
     if (updates.categoria !== undefined) data.category = updates.categoria;
-    if (updates.lineasArticulos !== undefined) data.lineItems = updates.lineasArticulos as any;
+    if (updates.lineasArticulos !== undefined) data.lineItems = updates.lineasArticulos as unknown as Prisma.InputJsonValue;
     if (updates.confianzaExtraccion !== undefined) data.extractionConfidence = updates.confianzaExtraccion;
     if (updates.notas !== undefined) data.notes = updates.notas;
     if (updates.imageUrl !== undefined) data.imageUrl = updates.imageUrl;
@@ -160,8 +213,9 @@ export class PrismaExpenseRepository implements IExpenseRepository {
       });
 
       return this.mapToEntity(updated);
-    } catch {
-      return null;
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') return null;
+      throw err;
     }
   }
 
@@ -171,8 +225,9 @@ export class PrismaExpenseRepository implements IExpenseRepository {
         where: { id },
       });
       return true;
-    } catch {
-      return false;
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') return false;
+      throw err;
     }
   }
 }

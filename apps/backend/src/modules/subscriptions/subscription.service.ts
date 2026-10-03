@@ -1,76 +1,88 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import {
   SubscriptionPlan,
   UserSubscription,
   PLAN_CONFIGS,
+  normalizePlan,
+  toDbPlan,
 } from './subscription.entity.js';
+import { calendarMonthPeriod, anchoredPeriod, cycleLabel } from './billing-period.js';
+import { normalizePhone } from '../../core/security/privacy.js';
 
-export interface PaymentTransactionRecord {
-  reference: string;
-  amountCOP: number;
-  paymentMethod: string;
-  customerName?: string;
-  customerEmail?: string;
-  customerDocNumber?: string;
-  userId?: string;
-  status?: string;
+export interface QuotaReservation {
+  allowed: boolean;
+  subscription: UserSubscription;
+  remaining: number;
 }
+
+type SubscriptionRecord = Prisma.SubscriptionGetPayload<object>;
 
 export class SubscriptionService {
   private readonly inMemorySubscriptions = new Map<string, UserSubscription>();
 
   constructor(private readonly prisma?: PrismaClient | null) {}
 
-  /**
-   * Calcula el periodo mensual natural (del 1 al último día de mes) para el plan gratuito.
-   */
-  private getCalendarMonthPeriod(date: Date = new Date()): { start: Date; end: Date; cycle: string } {
-    const start = new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
-    const end = new Date(date.getFullYear(), date.getMonth() + 1, 1, 0, 0, 0, 0);
-    const month = String(date.getMonth() + 1).padStart(2, '0');
+  private toEntity(record: SubscriptionRecord): UserSubscription {
+    const plan = normalizePlan(record.plan);
     return {
-      start,
-      end,
-      cycle: `${date.getFullYear()}-${month}`,
+      userId: record.userId || undefined,
+      phoneNumber: record.phoneNumber,
+      name: record.name || undefined,
+      plan,
+      monthlyLimit: record.monthlyLimit,
+      currentUsage: record.currentUsage,
+      manualUsage: record.manualUsage,
+      manualMonthlyLimit: PLAN_CONFIGS[plan].manualMonthlyLimit,
+      billingCycleMonth: cycleLabel(record.currentPeriodStart),
+      billingCycleAnchor: record.billingCycleAnchor,
+      currentPeriodStart: record.currentPeriodStart.toISOString(),
+      currentPeriodEnd: record.currentPeriodEnd.toISOString(),
+      status: record.status === 'active' ? 'activo' : 'suspendido',
+      createdAt: record.createdAt.toISOString(),
+      updatedAt: record.updatedAt.toISOString(),
     };
   }
 
   /**
-   * Calcula el periodo de 1 mes exacto desde la fecha de pago (ej: 15 de oct al 15 de nov).
+   * Cambios necesarios cuando el periodo actual terminó:
+   * - Plan gratuito: nuevo mes calendario con cupo en 0.
+   * - Plan pagado: al no existir cobro recurrente, el plan vence y vuelve al gratuito.
    */
-  private getAnchorPeriod(anchorDate: Date = new Date()): { start: Date; end: Date } {
-    const start = new Date(anchorDate);
-    const end = new Date(anchorDate);
-    end.setMonth(end.getMonth() + 1);
-    return { start, end };
+  private rolloverUpdates(plan: SubscriptionPlan, periodEnd: Date, now: Date) {
+    if (now < periodEnd) return null;
+    const free = calendarMonthPeriod(now);
+    return {
+      plan: 'gratuito' as SubscriptionPlan,
+      monthlyLimit: PLAN_CONFIGS.gratuito.monthlyLimit,
+      currentUsage: 0,
+      manualUsage: 0,
+      billingCycleAnchor: 1,
+      currentPeriodStart: free.start,
+      currentPeriodEnd: free.end,
+      downgraded: plan !== 'gratuito',
+    };
   }
 
   /**
-   * Obtiene la suscripción de un usuario o crea una en el Plan Gratuito (10 escaneos/mes).
-   * Si ha cambiado de mes (nuevo ciclo), reinicia el consumo a 0 automáticamente.
+   * Obtiene la suscripción asociada a un número de WhatsApp o crea una en el Plan Gratuito.
+   * Aplica automáticamente el cambio de ciclo (reinicio de cupo o vencimiento de plan pagado).
    */
-  async getOrCreateSubscription(
-    phoneNumber: string,
-    name?: string,
-    userId?: string
-  ): Promise<UserSubscription> {
-    const cleanPhone = phoneNumber.replace(/\D/g, '');
+  async getOrCreateSubscription(phoneNumber: string, name?: string, userId?: string): Promise<UserSubscription> {
+    const cleanPhone = normalizePhone(phoneNumber);
     const now = new Date();
-    const freePeriod = this.getCalendarMonthPeriod(now);
+    const freePeriod = calendarMonthPeriod(now);
 
     if (this.prisma) {
-      try {
-        let record = await this.prisma.subscription.findUnique({
-          where: { phoneNumber: cleanPhone },
-        });
+      let record = await this.prisma.subscription.findUnique({ where: { phoneNumber: cleanPhone } });
 
-        if (!record) {
+      if (!record) {
+        try {
           record = await this.prisma.subscription.create({
             data: {
               phoneNumber: cleanPhone,
               name: name || null,
               userId: userId || null,
-              plan: 'free',
+              plan: toDbPlan('gratuito'),
               monthlyLimit: PLAN_CONFIGS.gratuito.monthlyLimit,
               currentUsage: 0,
               billingCycleAnchor: 1,
@@ -79,71 +91,49 @@ export class SubscriptionService {
               status: 'active',
             },
           });
-        } else {
-          const updates: any = {};
-
-          // Verificar si el periodo mensual ya venció (nuevo ciclo mensual)
-          if (now >= record.currentPeriodEnd) {
-            if (record.plan === 'free' || record.plan === 'gratuito') {
-              updates.currentUsage = 0;
-              updates.currentPeriodStart = freePeriod.start;
-              updates.currentPeriodEnd = freePeriod.end;
-            } else {
-              // Para planes de pago, avanzar el ciclo al siguiente periodo de 1 mes
-              const nextPeriod = this.getAnchorPeriod(record.currentPeriodEnd);
-              updates.currentUsage = 0;
-              updates.currentPeriodStart = nextPeriod.start;
-              updates.currentPeriodEnd = nextPeriod.end;
-            }
-          }
-
-          if (name && record.name !== name) {
-            updates.name = name;
-          }
-          if (userId && !record.userId) {
-            updates.userId = userId;
-          }
-
-          if (Object.keys(updates).length > 0) {
-            record = await this.prisma.subscription.update({
-              where: { phoneNumber: cleanPhone },
-              data: updates,
-            });
+        } catch (err) {
+          // Creación concurrente del mismo número: leer la que ganó
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+            record = await this.prisma.subscription.findUniqueOrThrow({ where: { phoneNumber: cleanPhone } });
+          } else {
+            throw err;
           }
         }
-
-        const planKey = (record.plan === 'free' ? 'gratuito' : record.plan) as SubscriptionPlan;
-        const cycleMonth = `${record.currentPeriodStart.getFullYear()}-${String(record.currentPeriodStart.getMonth() + 1).padStart(2, '0')}`;
-
-        return {
-          phoneNumber: record.phoneNumber,
-          name: record.name || undefined,
-          plan: planKey,
-          monthlyLimit: record.monthlyLimit,
-          currentUsage: record.currentUsage,
-          billingCycleMonth: cycleMonth,
-          billingCycleAnchor: record.billingCycleAnchor,
-          currentPeriodStart: record.currentPeriodStart.toISOString(),
-          currentPeriodEnd: record.currentPeriodEnd.toISOString(),
-          status: record.status === 'active' ? 'activo' : 'suspendido',
-          createdAt: record.createdAt.toISOString(),
-          updatedAt: record.updatedAt.toISOString(),
-        };
-      } catch (err) {
-        console.warn('⚠️ [Prisma] Error en getOrCreateSubscription, usando memoria fallback:', (err as Error).message);
+        return this.toEntity(record);
       }
+
+      const data: Prisma.SubscriptionUpdateInput = {};
+      const rollover = this.rolloverUpdates(normalizePlan(record.plan), record.currentPeriodEnd, now);
+      if (rollover) {
+        data.plan = toDbPlan(rollover.plan);
+        data.monthlyLimit = rollover.monthlyLimit;
+        data.currentUsage = rollover.currentUsage;
+        data.manualUsage = rollover.manualUsage;
+        data.billingCycleAnchor = rollover.billingCycleAnchor;
+        data.currentPeriodStart = rollover.currentPeriodStart;
+        data.currentPeriodEnd = rollover.currentPeriodEnd;
+      }
+      if (name && record.name !== name) data.name = name;
+      if (userId && record.userId !== userId) data.user = { connect: { id: userId } };
+
+      if (Object.keys(data).length > 0) {
+        record = await this.prisma.subscription.update({ where: { phoneNumber: cleanPhone }, data });
+      }
+      return this.toEntity(record);
     }
 
-    // Fallback en memoria
+    // Persistencia en memoria (solo desarrollo)
     let sub = this.inMemorySubscriptions.get(cleanPhone);
-
     if (!sub) {
       sub = {
+        userId,
         phoneNumber: cleanPhone,
         name,
         plan: 'gratuito',
         monthlyLimit: PLAN_CONFIGS.gratuito.monthlyLimit,
         currentUsage: 0,
+        manualUsage: 0,
+        manualMonthlyLimit: PLAN_CONFIGS.gratuito.manualMonthlyLimit,
         billingCycleMonth: freePeriod.cycle,
         billingCycleAnchor: 1,
         currentPeriodStart: freePeriod.start.toISOString(),
@@ -153,204 +143,195 @@ export class SubscriptionService {
         updatedAt: now.toISOString(),
       };
       this.inMemorySubscriptions.set(cleanPhone, sub);
-      return sub;
+      return { ...sub };
     }
 
-    const currentEnd = sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd) : freePeriod.end;
-    if (now >= currentEnd) {
+    const rollover = this.rolloverUpdates(sub.plan, new Date(sub.currentPeriodEnd || freePeriod.end), now);
+    if (rollover) {
+      sub.plan = rollover.plan;
+      sub.monthlyLimit = rollover.monthlyLimit;
+      sub.manualMonthlyLimit = PLAN_CONFIGS.gratuito.manualMonthlyLimit;
       sub.currentUsage = 0;
-      sub.currentPeriodStart = freePeriod.start.toISOString();
-      sub.currentPeriodEnd = freePeriod.end.toISOString();
-      sub.billingCycleMonth = freePeriod.cycle;
-      sub.updatedAt = now.toISOString();
-      this.inMemorySubscriptions.set(cleanPhone, sub);
-    }
-
-    if (name && sub.name !== name) {
-      sub.name = name;
+      sub.manualUsage = 0;
+      sub.billingCycleAnchor = 1;
+      sub.currentPeriodStart = rollover.currentPeriodStart.toISOString();
+      sub.currentPeriodEnd = rollover.currentPeriodEnd.toISOString();
+      sub.billingCycleMonth = cycleLabel(rollover.currentPeriodStart);
       sub.updatedAt = now.toISOString();
     }
+    if (name && sub.name !== name) sub.name = name;
+    if (userId && sub.userId !== userId) sub.userId = userId;
+    return { ...sub };
+  }
 
-    return sub;
+  async findByPhone(phoneNumber: string): Promise<UserSubscription | null> {
+    const cleanPhone = normalizePhone(phoneNumber);
+    if (this.prisma) {
+      const exists = await this.prisma.subscription.findUnique({ where: { phoneNumber: cleanPhone } });
+      return exists ? this.getOrCreateSubscription(cleanPhone) : null;
+    }
+    return this.inMemorySubscriptions.has(cleanPhone) ? this.getOrCreateSubscription(cleanPhone) : null;
   }
 
   /**
-   * Valida si el usuario tiene cupo disponible para escanear un nuevo comprobante.
+   * Reserva de forma atómica 1 comprobante del cupo mensual antes de procesar un documento.
+   * Si el procesamiento falla, debe liberarse con releaseQuota().
    */
-  async canProcessDocument(
-    phoneNumber: string,
-    name?: string
-  ): Promise<{
-    allowed: boolean;
-    remaining: number;
-    total: number;
-    plan: SubscriptionPlan;
-    currentUsage: number;
-    periodEnd?: string;
-  }> {
-    const sub = await this.getOrCreateSubscription(phoneNumber, name);
+  async tryConsumeQuota(phoneNumber: string, name?: string, userId?: string): Promise<QuotaReservation> {
+    const cleanPhone = normalizePhone(phoneNumber);
+    // Aplica primero el cambio de ciclo si corresponde
+    await this.getOrCreateSubscription(cleanPhone, name, userId);
 
-    if (sub.status !== 'activo') {
+    if (this.prisma) {
+      const affected = await this.prisma.$executeRaw`
+        UPDATE "subscriptions"
+        SET "current_usage" = "current_usage" + 1, "updated_at" = NOW()
+        WHERE "phone_number" = ${cleanPhone}
+          AND "status" = 'active'
+          AND "current_usage" < "monthly_limit"`;
+      const record = await this.prisma.subscription.findUniqueOrThrow({ where: { phoneNumber: cleanPhone } });
+      const subscription = this.toEntity(record);
       return {
-        allowed: false,
-        remaining: 0,
-        total: sub.monthlyLimit,
-        plan: sub.plan,
-        currentUsage: sub.currentUsage,
-        periodEnd: sub.currentPeriodEnd,
+        allowed: affected === 1,
+        subscription,
+        remaining: Math.max(0, subscription.monthlyLimit - subscription.currentUsage),
       };
     }
 
-    const remaining = Math.max(0, sub.monthlyLimit - sub.currentUsage);
-    const allowed = sub.currentUsage < sub.monthlyLimit;
-
+    const sub = this.inMemorySubscriptions.get(cleanPhone)!;
+    const allowed = sub.status === 'activo' && sub.currentUsage < sub.monthlyLimit;
+    if (allowed) {
+      sub.currentUsage += 1;
+      sub.updatedAt = new Date().toISOString();
+    }
     return {
       allowed,
-      remaining,
-      total: sub.monthlyLimit,
-      plan: sub.plan,
-      currentUsage: sub.currentUsage,
-      periodEnd: sub.currentPeriodEnd,
+      subscription: { ...sub },
+      remaining: Math.max(0, sub.monthlyLimit - sub.currentUsage),
     };
   }
 
-  /**
-   * Incrementa en +1 el consumo de comprobantes del usuario tras un escaneo exitoso.
-   */
-  async incrementUsage(phoneNumber: string): Promise<UserSubscription> {
-    const cleanPhone = phoneNumber.replace(/\D/g, '');
-    const currentSub = await this.getOrCreateSubscription(cleanPhone);
-
+  /** Devuelve al cupo un comprobante reservado cuyo procesamiento falló. */
+  async releaseQuota(phoneNumber: string): Promise<void> {
+    const cleanPhone = normalizePhone(phoneNumber);
     if (this.prisma) {
-      try {
-        const updated = await this.prisma.subscription.update({
-          where: { phoneNumber: cleanPhone },
-          data: {
-            currentUsage: { increment: 1 },
-          },
-        });
-
-        const planKey = (updated.plan === 'free' ? 'gratuito' : updated.plan) as SubscriptionPlan;
-        const cycleMonth = `${updated.currentPeriodStart.getFullYear()}-${String(updated.currentPeriodStart.getMonth() + 1).padStart(2, '0')}`;
-
-        return {
-          phoneNumber: updated.phoneNumber,
-          name: updated.name || undefined,
-          plan: planKey,
-          monthlyLimit: updated.monthlyLimit,
-          currentUsage: updated.currentUsage,
-          billingCycleMonth: cycleMonth,
-          billingCycleAnchor: updated.billingCycleAnchor,
-          currentPeriodStart: updated.currentPeriodStart.toISOString(),
-          currentPeriodEnd: updated.currentPeriodEnd.toISOString(),
-          status: updated.status === 'active' ? 'activo' : 'suspendido',
-          createdAt: updated.createdAt.toISOString(),
-          updatedAt: updated.updatedAt.toISOString(),
-        };
-      } catch (err) {
-        console.warn('⚠️ [Prisma] Error en incrementUsage, usando memoria:', (err as Error).message);
-      }
+      await this.prisma.$executeRaw`
+        UPDATE "subscriptions"
+        SET "current_usage" = GREATEST("current_usage" - 1, 0), "updated_at" = NOW()
+        WHERE "phone_number" = ${cleanPhone}`;
+      return;
     }
-
-    currentSub.currentUsage += 1;
-    currentSub.updatedAt = new Date().toISOString();
-    this.inMemorySubscriptions.set(cleanPhone, currentSub);
-    return currentSub;
+    const sub = this.inMemorySubscriptions.get(cleanPhone);
+    if (sub && sub.currentUsage > 0) sub.currentUsage -= 1;
   }
 
   /**
-   * Asigna un plan de suscripción tras un pago, estableciendo el ciclo mensual de 30 días
-   * anclado a la fecha exacta del pago (ej: del 15 de oct al 15 de nov).
+   * Reserva de forma atómica `count` gastos escritos. En planes con gastos escritos ilimitados
+   * siempre se permite (solo se contabiliza); en el gratuito no se supera el límite mensual.
    */
-  async upgradePlan(
+  async tryConsumeManualQuota(
     phoneNumber: string,
-    plan: SubscriptionPlan,
-    transaction?: PaymentTransactionRecord
-  ): Promise<UserSubscription> {
-    const cleanPhone = phoneNumber.replace(/\D/g, '');
+    count: number,
+    name?: string,
+    userId?: string
+  ): Promise<{ allowed: boolean; subscription: UserSubscription; remaining: number | null }> {
+    const cleanPhone = normalizePhone(phoneNumber);
+    const current = await this.getOrCreateSubscription(cleanPhone, name, userId);
+    const limit = current.manualMonthlyLimit;
+    const remainingOf = (sub: UserSubscription) =>
+      sub.manualMonthlyLimit === null ? null : Math.max(0, sub.manualMonthlyLimit - sub.manualUsage);
+
+    if (current.status !== 'activo') {
+      return { allowed: false, subscription: current, remaining: remainingOf(current) };
+    }
+
+    if (this.prisma) {
+      const affected =
+        limit === null
+          ? await this.prisma.$executeRaw`
+              UPDATE "subscriptions" SET "manual_usage" = "manual_usage" + ${count}, "updated_at" = NOW()
+              WHERE "phone_number" = ${cleanPhone} AND "status" = 'active'`
+          : await this.prisma.$executeRaw`
+              UPDATE "subscriptions" SET "manual_usage" = "manual_usage" + ${count}, "updated_at" = NOW()
+              WHERE "phone_number" = ${cleanPhone} AND "status" = 'active'
+                AND "plan" = ${toDbPlan(current.plan)} AND "manual_usage" + ${count} <= ${limit}`;
+      const record = await this.prisma.subscription.findUniqueOrThrow({ where: { phoneNumber: cleanPhone } });
+      const subscription = this.toEntity(record);
+      return { allowed: affected === 1, subscription, remaining: remainingOf(subscription) };
+    }
+
+    const sub = this.inMemorySubscriptions.get(cleanPhone)!;
+    const allowed = limit === null || sub.manualUsage + count <= limit;
+    if (allowed) sub.manualUsage += count;
+    return { allowed, subscription: { ...sub }, remaining: remainingOf(sub) };
+  }
+
+  /** Devuelve gastos escritos al cupo (DESHACER). */
+  async releaseManualQuota(phoneNumber: string, count: number): Promise<void> {
+    const cleanPhone = normalizePhone(phoneNumber);
+    if (this.prisma) {
+      await this.prisma.$executeRaw`
+        UPDATE "subscriptions" SET "manual_usage" = GREATEST("manual_usage" - ${count}, 0), "updated_at" = NOW()
+        WHERE "phone_number" = ${cleanPhone}`;
+      return;
+    }
+    const sub = this.inMemorySubscriptions.get(cleanPhone);
+    if (sub) sub.manualUsage = Math.max(0, sub.manualUsage - count);
+  }
+
+  /**
+   * Asigna un plan pagado tras un pago aprobado, con un ciclo de un mes
+   * anclado a la fecha exacta del pago (ej: del 15 de oct al 15 de nov).
+   * El registro del pago lo gestiona PaymentService.
+   */
+  async upgradePlan(phoneNumber: string, plan: SubscriptionPlan, userId?: string): Promise<UserSubscription> {
+    const cleanPhone = normalizePhone(phoneNumber);
     const config = PLAN_CONFIGS[plan];
     const now = new Date();
     const anchorDay = now.getDate();
-    const period = this.getAnchorPeriod(now);
-    await this.getOrCreateSubscription(cleanPhone);
+    const period = anchoredPeriod(now, anchorDay);
+    await this.getOrCreateSubscription(cleanPhone, undefined, userId);
 
     if (this.prisma) {
-      try {
-        const dbPlan = plan === 'gratuito' ? 'free' : plan;
-
-        const updated = await this.prisma.subscription.update({
-          where: { phoneNumber: cleanPhone },
-          data: {
-            plan: dbPlan,
-            monthlyLimit: config.monthlyLimit,
-            currentUsage: 0, // Reinicia el cupo al comprar o renovar
-            billingCycleAnchor: anchorDay,
-            currentPeriodStart: period.start,
-            currentPeriodEnd: period.end,
-            status: 'active',
-          },
-        });
-
-        if (transaction) {
-          await this.prisma.paymentTransaction.create({
-            data: {
-              phoneNumber: cleanPhone,
-              plan: dbPlan,
-              amountCop: transaction.amountCOP,
-              paymentMethod: transaction.paymentMethod,
-              reference: transaction.reference,
-              status: transaction.status || 'APPROVED',
-              customerName: transaction.customerName || null,
-              customerEmail: transaction.customerEmail || null,
-              customerDocNumber: transaction.customerDocNumber || null,
-              userId: transaction.userId || null,
-            },
-          });
-        }
-
-        const cycleMonth = `${period.start.getFullYear()}-${String(period.start.getMonth() + 1).padStart(2, '0')}`;
-
-        return {
-          phoneNumber: updated.phoneNumber,
-          name: updated.name || undefined,
-          plan,
-          monthlyLimit: updated.monthlyLimit,
-          currentUsage: updated.currentUsage,
-          billingCycleMonth: cycleMonth,
-          billingCycleAnchor: updated.billingCycleAnchor,
-          currentPeriodStart: updated.currentPeriodStart.toISOString(),
-          currentPeriodEnd: updated.currentPeriodEnd.toISOString(),
-          status: 'activo',
-          createdAt: updated.createdAt.toISOString(),
-          updatedAt: updated.updatedAt.toISOString(),
-        };
-      } catch (err) {
-        console.warn('⚠️ [Prisma] Error en upgradePlan, usando memoria:', (err as Error).message);
-      }
+      const updated = await this.prisma.subscription.update({
+        where: { phoneNumber: cleanPhone },
+        data: {
+          plan: toDbPlan(plan),
+          monthlyLimit: config.monthlyLimit,
+          currentUsage: 0, // Reinicia el cupo al comprar o renovar
+          manualUsage: 0,
+          billingCycleAnchor: anchorDay,
+          currentPeriodStart: period.start,
+          currentPeriodEnd: period.end,
+          status: 'active',
+        },
+      });
+      return this.toEntity(updated);
     }
 
-    const sub = this.inMemorySubscriptions.get(cleanPhone) || {
-      phoneNumber: cleanPhone,
-      plan,
-      monthlyLimit: config.monthlyLimit,
-      currentUsage: 0,
-      billingCycleMonth: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
-      status: 'activo' as const,
-      createdAt: now.toISOString(),
-      updatedAt: now.toISOString(),
-    };
-
+    const sub = this.inMemorySubscriptions.get(cleanPhone)!;
     sub.plan = plan;
     sub.monthlyLimit = config.monthlyLimit;
+    sub.manualMonthlyLimit = config.manualMonthlyLimit;
     sub.currentUsage = 0;
+    sub.manualUsage = 0;
     sub.billingCycleAnchor = anchorDay;
     sub.currentPeriodStart = period.start.toISOString();
     sub.currentPeriodEnd = period.end.toISOString();
+    sub.billingCycleMonth = cycleLabel(period.start);
     sub.status = 'activo';
     sub.updatedAt = now.toISOString();
-    this.inMemorySubscriptions.set(cleanPhone, sub);
+    return { ...sub };
+  }
 
-    return sub;
+  /** Elimina la suscripción de un número (derecho de supresión). */
+  async deleteByPhone(phoneNumber: string): Promise<void> {
+    const cleanPhone = normalizePhone(phoneNumber);
+    if (this.prisma) {
+      await this.prisma.subscription.deleteMany({ where: { phoneNumber: cleanPhone } });
+      return;
+    }
+    this.inMemorySubscriptions.delete(cleanPhone);
   }
 
   /**
@@ -358,31 +339,9 @@ export class SubscriptionService {
    */
   async getAllSubscriptions(): Promise<UserSubscription[]> {
     if (this.prisma) {
-      try {
-        const records = await this.prisma.subscription.findMany();
-        return records.map((r) => {
-          const planKey = (r.plan === 'free' ? 'gratuito' : r.plan) as SubscriptionPlan;
-          const cycleMonth = `${r.currentPeriodStart.getFullYear()}-${String(r.currentPeriodStart.getMonth() + 1).padStart(2, '0')}`;
-          return {
-            phoneNumber: r.phoneNumber,
-            name: r.name || undefined,
-            plan: planKey,
-            monthlyLimit: r.monthlyLimit,
-            currentUsage: r.currentUsage,
-            billingCycleMonth: cycleMonth,
-            billingCycleAnchor: r.billingCycleAnchor,
-            currentPeriodStart: r.currentPeriodStart.toISOString(),
-            currentPeriodEnd: r.currentPeriodEnd.toISOString(),
-            status: r.status === 'active' ? 'activo' : 'suspendido',
-            createdAt: r.createdAt.toISOString(),
-            updatedAt: r.updatedAt.toISOString(),
-          };
-        });
-      } catch (err) {
-        console.warn('⚠️ [Prisma] Error en getAllSubscriptions, usando memoria:', (err as Error).message);
-      }
+      const records = await this.prisma.subscription.findMany({ orderBy: { createdAt: 'desc' } });
+      return records.map((r) => this.toEntity(r));
     }
-
-    return Array.from(this.inMemorySubscriptions.values());
+    return Array.from(this.inMemorySubscriptions.values()).map((s) => ({ ...s }));
   }
 }

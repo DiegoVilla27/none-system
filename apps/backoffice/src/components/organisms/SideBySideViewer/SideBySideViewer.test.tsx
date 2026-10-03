@@ -31,6 +31,26 @@ describe('Componente Organismo SideBySideViewer (Integración de Visor y Formula
     expect(screen.getByTitle('Descargar PDF')).toBeInTheDocument();
   });
 
+  it('muestra un gasto manual como "sin soporte" y oculta campos fiscales', () => {
+    const manualExpense: Expense = {
+      ...mockImageExpense,
+      tipoDocumento: 'manual',
+      comercio: 'Arroz',
+      imageUrl: null,
+      imageOriginalName: null,
+      nit: null,
+      cifNif: null,
+      isDianCompliant: false,
+    };
+    render(<SideBySideViewer initialExpense={manualExpense} />);
+
+    expect(screen.getByText('Gasto registrado sin soporte')).toBeInTheDocument();
+    expect(screen.getByText(/no es soporte contable ni deducible/i)).toBeInTheDocument();
+    expect(screen.queryByAltText('Soporte financiero')).not.toBeInTheDocument();
+    expect(screen.queryByText('NIT o Documento (Colombia)')).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue('Arroz')).toBeInTheDocument();
+  });
+
   it('permite modificar los campos contables y totales financieros en COP', async () => {
     const handleSave = vi.fn();
     render(<SideBySideViewer initialExpense={mockImageExpense} onSave={handleSave} />);

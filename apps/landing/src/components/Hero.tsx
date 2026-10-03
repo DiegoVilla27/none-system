@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { MessageCircle, Play, ShieldCheck, CheckCircle2, Zap, FileSpreadsheet, ArrowRight } from 'lucide-react';
+import { WHATSAPP_START_URL } from '@/lib/contact';
 
 interface HeroProps {
   onScrollToDemo: () => void;
@@ -9,8 +10,7 @@ interface HeroProps {
 }
 
 export const Hero: React.FC<HeroProps> = ({ onScrollToDemo, onScrollToPlans }) => {
-  const whatsappUrl =
-    'https://wa.me/573009999999?text=Hola%2C%20quiero%20empezar%20mi%20prueba%20gratuita%20de%2010%20comprobantes%20con%20None%20System';
+  const whatsappUrl = WHATSAPP_START_URL;
 
   return (
     <section className="relative overflow-hidden pt-12 pb-20 md:pt-20 md:pb-28">
@@ -67,29 +67,29 @@ export const Hero: React.FC<HeroProps> = ({ onScrollToDemo, onScrollToPlans }) =
             <CheckCircle2 className="h-4 w-4 text-emerald-400" /> Sin tarjeta de crédito
           </span>
           <span className="flex items-center gap-1.5">
-            <ShieldCheck className="h-4 w-4 text-brand-400" /> Cero riesgo de baneo (Meta Cloud API)
+            <ShieldCheck className="h-4 w-4 text-brand-400" /> API oficial de WhatsApp (Meta)
           </span>
           <span className="flex items-center gap-1.5">
-            <Zap className="h-4 w-4 text-amber-400" /> Extracción en 2.1 segundos
+            <Zap className="h-4 w-4 text-amber-400" /> Extracción en segundos
           </span>
           <span className="flex items-center gap-1.5">
-            <FileSpreadsheet className="h-4 w-4 text-cyan-400" /> Compatible con Excel y la DIAN
+            <FileSpreadsheet className="h-4 w-4 text-cyan-400" /> Exporta a Excel para tu contador
           </span>
         </div>
 
         {/* Metric summary boxes */}
         <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
           <div className="rounded-xl border border-surface-border bg-surface-card/60 p-4 backdrop-blur-sm">
-            <div className="text-2xl sm:text-3xl font-extrabold text-white">+12.000</div>
-            <div className="text-xs text-slate-400 mt-1">Comprobantes procesados</div>
+            <div className="text-2xl sm:text-3xl font-extrabold text-white">Foto · PDF</div>
+            <div className="text-xs text-slate-400 mt-1">Facturas, recibos y transferencias</div>
           </div>
           <div className="rounded-xl border border-surface-border bg-surface-card/60 p-4 backdrop-blur-sm">
-            <div className="text-2xl sm:text-3xl font-extrabold text-brand-400">99.4%</div>
-            <div className="text-xs text-slate-400 mt-1">Precisión en datos fiscales</div>
+            <div className="text-2xl sm:text-3xl font-extrabold text-brand-400">✍️ Texto</div>
+            <div className="text-xs text-slate-400 mt-1">Gastos sin recibo: "arroz 5000"</div>
           </div>
           <div className="rounded-xl border border-surface-border bg-surface-card/60 p-4 backdrop-blur-sm">
-            <div className="text-2xl sm:text-3xl font-extrabold text-emerald-400">15 Horas</div>
-            <div className="text-xs text-slate-400 mt-1">Ahorro mensual promedio</div>
+            <div className="text-2xl sm:text-3xl font-extrabold text-emerald-400">IVA · INC</div>
+            <div className="text-xs text-slate-400 mt-1">Impuestos separados automáticamente</div>
           </div>
           <div className="rounded-xl border border-surface-border bg-surface-card/60 p-4 backdrop-blur-sm">
             <div className="text-2xl sm:text-3xl font-extrabold text-amber-400">100% COP</div>

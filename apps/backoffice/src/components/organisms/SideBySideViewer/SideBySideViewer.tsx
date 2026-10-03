@@ -23,6 +23,8 @@ import {
   ExternalLink,
   Download,
   FileText,
+  PenLine,
+  ShieldAlert,
 } from 'lucide-react';
 
 export interface SideBySideViewerProps {
@@ -83,6 +85,13 @@ export const SideBySideViewer: React.FC<SideBySideViewerProps> = ({
   };
 
   const isTransferencia = expense.tipoDocumento === 'transferencia';
+  const isManual = expense.tipoDocumento === 'manual' || !expense.imageUrl;
+  const documentLabel = isManual
+    ? 'Gasto manual'
+    : isTransferencia
+    ? 'Comprobante Bancario'
+    : 'Factura / Recibo';
+  const imageUrl = expense.imageUrl ?? undefined;
   const isPdf =
     Boolean(expense.imageUrl?.toLowerCase().includes('.pdf')) ||
     Boolean(expense.imageOriginalName?.toLowerCase().endsWith('.pdf')) ||
@@ -96,22 +105,42 @@ export const SideBySideViewer: React.FC<SideBySideViewerProps> = ({
       )}
     >
       {/* ================= COLUMNA IZQUIERDA: VISOR DE IMAGEN / SOPORTE ================= */}
+      {isManual ? (
+        <div className="lg:col-span-5 flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-300 uppercase tracking-wide">Soporte</span>
+            <Badge variant="manual">{documentLabel}</Badge>
+          </div>
+          <div className="w-full rounded-xl bg-surface-base border border-dashed border-surface-border flex flex-col items-center justify-center text-center gap-3 p-8 min-h-[260px]">
+            <PenLine className="w-8 h-8 text-amber-300" />
+            <Heading level={4}>Gasto registrado sin soporte</Heading>
+            <Text variant="small" className="text-slate-400 max-w-xs">
+              Este gasto se escribió a mano (sin foto ni PDF). Sirve para tu control personal.
+            </Text>
+            <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-left text-xs text-amber-200 max-w-sm">
+              <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                Sin factura no es soporte contable ni deducible ante la DIAN (Art. 771-2 E.T.). Si tienes el recibo,
+                escanéalo para tener el respaldo.
+              </span>
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className="lg:col-span-5 flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
               Soporte Original
             </span>
-            <Badge variant={expense.tipoDocumento}>
-              {isTransferencia ? 'Comprobante Bancario' : 'Factura Comercial'}
-            </Badge>
+            <Badge variant={expense.tipoDocumento}>{documentLabel}</Badge>
           </div>
 
           {/* Controles: PDF o Imagen */}
           {isPdf ? (
             <div className="flex items-center gap-1 bg-surface-card border border-surface-border p-1 rounded-lg">
               <a
-                href={expense.imageUrl}
+                href={imageUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-brand-300 hover:text-brand-200 hover:bg-surface-elevated transition-colors"
@@ -122,7 +151,7 @@ export const SideBySideViewer: React.FC<SideBySideViewerProps> = ({
               </a>
               <div className="w-px h-3 bg-surface-border mx-0.5" />
               <a
-                href={expense.imageUrl}
+                href={imageUrl}
                 download={expense.imageOriginalName || 'comprobante.pdf'}
                 className="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-surface-elevated transition-colors"
                 title="Descargar PDF"
@@ -183,7 +212,7 @@ export const SideBySideViewer: React.FC<SideBySideViewerProps> = ({
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={expense.imageUrl}
+                src={imageUrl}
                 alt="Soporte financiero"
                 className="max-h-[480px] w-auto object-contain rounded-lg shadow-2xl border border-surface-border/50"
               />
@@ -201,31 +230,38 @@ export const SideBySideViewer: React.FC<SideBySideViewerProps> = ({
           </div>
         </div>
       </div>
+      )}
 
       {/* ================= COLUMNA DERECHA: FORMULARIO DE VERIFICACIÓN ================= */}
       <div className="lg:col-span-7 flex flex-col gap-4 p-6 rounded-xl bg-surface-card border border-surface-border shadow-subtle">
         <div className="flex items-center justify-between border-b border-surface-border pb-4">
           <div>
-            <Heading level={3}>Verificación de Datos</Heading>
+            <Heading level={3}>{isManual ? 'Detalle del Gasto' : 'Verificación de Datos'}</Heading>
             <Text variant="small" className="text-slate-400">
-              Datos extraídos automáticamente por IA. Revisa y confirma antes de contabilizar.
+              {isManual
+                ? 'Gasto escrito manualmente. Puedes corregir cualquier dato.'
+                : 'Datos extraídos automáticamente por IA. Revisa y confirma antes de contabilizar.'}
             </Text>
           </div>
 
-          <Badge variant={expense.confianzaExtraccion} dot>
-            IA {expense.confianzaExtraccion.toUpperCase()}
-          </Badge>
+          {!isManual && (
+            <Badge variant={expense.confianzaExtraccion} dot>
+              IA {expense.confianzaExtraccion.toUpperCase()}
+            </Badge>
+          )}
         </div>
 
         {/* Campos Principales */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
-            label={isTransferencia ? 'Beneficiario / Convenio' : 'Comercio / Proveedor'}
+            label={isManual ? 'Concepto / Lugar' : isTransferencia ? 'Beneficiario / Convenio' : 'Comercio / Proveedor'}
             value={expense.comercio}
             onChange={(e) => updateField('comercio', e.target.value)}
             prefix={<Building2 className="w-4 h-4 text-brand-400" />}
           />
 
+          {!isManual && (
+          <>
           <Input
             label="Entidad Financiera / Pasarela"
             value={expense.entidadFinanciera || ''}
@@ -247,6 +283,8 @@ export const SideBySideViewer: React.FC<SideBySideViewerProps> = ({
             onChange={(e) => updateField('cifNif', e.target.value)}
             placeholder="890900943-1"
           />
+          </>
+          )}
 
           <Input
             type="date"
@@ -307,6 +345,8 @@ export const SideBySideViewer: React.FC<SideBySideViewerProps> = ({
 
         {/* Resumen de Totales en COP */}
         <div className="pt-3 border-t border-surface-border grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {!isManual && (
+          <>
           <Input
             type="number"
             label="Subtotal (COP)"
@@ -322,6 +362,8 @@ export const SideBySideViewer: React.FC<SideBySideViewerProps> = ({
             onChange={(e) => updateField('impuestos', e.target.value ? Number(e.target.value) : null)}
             placeholder="Opcional"
           />
+          </>
+          )}
 
           <Input
             type="number"

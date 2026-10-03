@@ -45,7 +45,7 @@ export function exportExpensesToCSV(
     'Impoconsumo INC (COP)',
     'Total Impuestos (COP)',
     'Total Pagado (COP)',
-    'Deducible DIAN (Art. 771-2)',
+    'Requisitos formales factura (Art. 771-2 E.T.)',
     'Conceptos / Artículos',
     'Nivel Confianza IA',
     'Estado Contable',
@@ -81,7 +81,11 @@ export function exportExpensesToCSV(
       : '';
 
     rows.push([
-      exp.tipoDocumento === 'factura' ? 'Factura Comercial' : 'Transferencia Bancaria',
+      exp.tipoDocumento === 'factura'
+        ? 'Factura / Recibo'
+        : exp.tipoDocumento === 'manual'
+        ? 'Gasto manual (sin soporte)'
+        : 'Transferencia Bancaria',
       exp.fecha || '',
       exp.comercio || 'No identificado',
       exp.nit || exp.cifNif || '',
@@ -94,7 +98,7 @@ export function exportExpensesToCSV(
       String(impoconsumo),
       String(impuestos),
       String(total),
-      exp.isDianCompliant ? 'SÍ (Deducible)' : 'NO',
+      exp.tipoDocumento === 'manual' ? 'NO (sin soporte)' : exp.isDianCompliant ? 'SÍ (requisitos formales)' : 'NO',
       conceptos,
       exp.confianzaExtraccion.toUpperCase(),
       exp.estado.toUpperCase(),

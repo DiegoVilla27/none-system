@@ -9,7 +9,9 @@ import { useAuth } from '@/context/AuthContext';
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const from = searchParams?.get('from') || '/expenses';
+  // Solo rutas internas: evita redirecciones abiertas hacia sitios externos
+  const rawFrom = searchParams?.get('from') || '';
+  const from = rawFrom.startsWith('/') && !rawFrom.startsWith('//') && !rawFrom.includes('\\') ? rawFrom : '/expenses';
   const { login, isAuthenticated, isLoading } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -136,7 +138,8 @@ function LoginForm() {
           </button>
         </form>
 
-        {/* Quick Demo Fill Button */}
+        {/* Botón de demo: solo en desarrollo (nunca publicar credenciales de administrador) */}
+        {process.env.NODE_ENV !== 'production' && (
         <div className="mt-6 pt-5 border-t border-surface-border">
           <button
             type="button"
@@ -144,9 +147,10 @@ function LoginForm() {
             className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-brand-500/40 bg-brand-500/5 py-2 text-xs font-medium text-brand-300 hover:bg-brand-500/10 transition-colors"
           >
             <KeyRound className="h-3.5 w-3.5 text-brand-400" />
-            <span>Autocompletar con usuario Demo (Admin)</span>
+            <span>Autocompletar con usuario Demo (solo desarrollo)</span>
           </button>
         </div>
+        )}
 
         {/* Register Link */}
         <div className="mt-6 text-center text-xs text-slate-400">

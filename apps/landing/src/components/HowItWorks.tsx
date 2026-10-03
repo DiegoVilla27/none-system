@@ -15,7 +15,7 @@ export const HowItWorks: React.FC = () => {
     {
       num: '02',
       icon: Cpu,
-      title: 'La IA extrae los datos en 2 segundos',
+      title: 'La IA extrae los datos en segundos',
       desc: 'Nuestro motor de visión Gemini identifica automáticamente el comercio, NIT, fecha, IVA (19%) o Impoconsumo (8%) y clasifica la categoría de gasto.',
       highlight: 'Recibes respuesta de confirmación al instante.',
     },

@@ -1,28 +1,33 @@
 import bcrypt from 'bcryptjs';
-import { User } from '../entities/user.entity.js';
+import { User, HABEAS_DATA_POLICY_VERSION } from '../entities/user.entity.js';
 import { IUserRepository } from './user.repository.interface.js';
 
 export class InMemoryUserRepository implements IUserRepository {
   private readonly users = new Map<string, User>();
 
-  constructor() {
-    // Seed default admin/demo user for development and testing
-    const defaultPasswordHash = bcrypt.hashSync('Admin123*', 10);
-    const now = new Date().toISOString();
+  /**
+   * @param seedDemoAdmin Crea un administrador de demostración (solo desarrollo / pruebas).
+   */
+  constructor(seedDemoAdmin = false) {
+    if (!seedDemoAdmin) return;
 
+    const now = new Date().toISOString();
     const demoUser: User = {
       id: 'usr-admin-demo-colombia',
       email: 'admin@none-system.com',
-      passwordHash: defaultPasswordHash,
-      name: 'Diego Villa (Admin)',
+      passwordHash: bcrypt.hashSync('Admin123*', 10),
+      name: 'Administrador Demo',
       phoneNumber: '573001234567',
+      phoneVerified: true,
+      sessionVersion: 0,
       role: 'admin',
       emailVerified: true,
       habeasDataConsent: {
         accepted: true,
         acceptedAt: now,
         ipAddress: '127.0.0.1',
-        version: 'Ley-1581-2012',
+        version: HABEAS_DATA_POLICY_VERSION,
+        channel: 'web',
       },
       createdAt: now,
       updatedAt: now,
@@ -70,15 +75,6 @@ export class InMemoryUserRepository implements IUserRepository {
     return null;
   }
 
-  async findByResetToken(token: string): Promise<User | null> {
-    for (const u of this.users.values()) {
-      if (u.resetPasswordToken === token) {
-        return { ...u };
-      }
-    }
-    return null;
-  }
-
   async update(id: string, updates: Partial<User>): Promise<User | null> {
     const existing = this.users.get(id);
     if (!existing) return null;
@@ -86,10 +82,17 @@ export class InMemoryUserRepository implements IUserRepository {
     const updated: User = {
       ...existing,
       ...updates,
+      habeasDataConsent: updates.habeasDataConsent
+        ? { ...updates.habeasDataConsent }
+        : existing.habeasDataConsent,
       updatedAt: new Date().toISOString(),
     };
 
     this.users.set(id, updated);
     return { ...updated };
+  }
+
+  async delete(id: string): Promise<boolean> {
+    return this.users.delete(id);
   }
 }

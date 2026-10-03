@@ -80,15 +80,13 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
             </div>
           </div>
 
-          <a
-            href="https://none-system.com/#planes"
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            href="/billing"
             className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-gradient-to-r from-brand-500 to-teal-500 text-sm font-bold text-white shadow-glow hover:from-brand-400 hover:to-teal-400 transition-all active:scale-95"
           >
             <span>Ver Planes y Actualizar</span>
             <ArrowRight className="w-4 h-4" />
-          </a>
+          </Link>
 
           <Button variant="ghost" size="sm" onClick={onClose} className="w-full text-xs text-slate-400">
             Continuar con el Plan Gratuito

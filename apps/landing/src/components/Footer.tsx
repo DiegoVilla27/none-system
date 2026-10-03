@@ -3,10 +3,12 @@
 import React from 'react';
 import Link from 'next/link';
 import { Sparkles, MessageCircle, ExternalLink, Heart } from 'lucide-react';
+import { BACKOFFICE_URL, WHATSAPP_SUPPORT_URL } from '@/lib/contact';
+import { LEGAL_ENTITY } from '@/lib/legal';
 
 export const Footer: React.FC = () => {
-  const backofficeUrl = process.env.NEXT_PUBLIC_BACKOFFICE_URL || 'http://localhost:3000';
-  const whatsappUrl = 'https://wa.me/573009999999?text=Hola%2C%20necesito%20soporte%20o%20informaci%C3%B3n%20sobre%20None%20System';
+  const backofficeUrl = BACKOFFICE_URL;
+  const whatsappUrl = WHATSAPP_SUPPORT_URL;
 
   return (
     <footer className="border-t border-surface-border bg-surface-card/60 py-16 text-slate-400">
@@ -57,27 +59,27 @@ export const Footer: React.FC = () => {
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200 mb-4">Producto</h4>
             <ul className="space-y-2.5 text-xs">
               <li>
-                <a href="#como-funciona" className="hover:text-brand-400 transition-colors">
+                <a href="/#como-funciona" className="hover:text-brand-400 transition-colors">
                   Cómo Funciona
                 </a>
               </li>
               <li>
-                <a href="#demo" className="hover:text-brand-400 transition-colors">
+                <a href="/#demo" className="hover:text-brand-400 transition-colors">
                   Demostración IA
                 </a>
               </li>
               <li>
-                <a href="#por-que-pagar" className="hover:text-brand-400 transition-colors">
+                <a href="/#por-que-pagar" className="hover:text-brand-400 transition-colors">
                   ¿Por qué pagar?
                 </a>
               </li>
               <li>
-                <a href="#calculadora-roi" className="hover:text-brand-400 transition-colors">
+                <a href="/#calculadora-roi" className="hover:text-brand-400 transition-colors">
                   Calculadora de ROI
                 </a>
               </li>
               <li>
-                <a href="#planes" className="hover:text-brand-400 transition-colors">
+                <a href="/#planes" className="hover:text-brand-400 transition-colors">
                   Planes y Precios (COP)
                 </a>
               </li>
@@ -86,19 +88,25 @@ export const Footer: React.FC = () => {
 
           {/* Col 3: Legal & Tributario Colombia */}
           <div>
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200 mb-4">Legal & DIAN</h4>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200 mb-4">Legal</h4>
             <ul className="space-y-2.5 text-xs">
               <li>
-                <span className="text-slate-400">Protección de Datos (Ley 1581)</span>
+                <Link href="/privacidad" className="hover:text-brand-400 transition-colors">
+                  Política de Tratamiento de Datos
+                </Link>
               </li>
               <li>
-                <span className="text-slate-400">Facturación Electrónica DIAN</span>
+                <Link href="/terminos" className="hover:text-brand-400 transition-colors">
+                  Términos y Condiciones
+                </Link>
               </li>
               <li>
-                <span className="text-slate-400">Estatuto Tributario Art. 771-2</span>
+                <span className="text-slate-400">Peticiones, quejas y reclamos: {LEGAL_ENTITY.privacyEmail}</span>
               </li>
               <li>
-                <span className="text-slate-400">Meta Cloud API Certificada</span>
+                <a href="https://www.sic.gov.co" target="_blank" rel="noopener noreferrer" className="hover:text-brand-400 transition-colors">
+                  Superintendencia de Industria y Comercio
+                </a>
               </li>
             </ul>
           </div>
@@ -107,7 +115,7 @@ export const Footer: React.FC = () => {
         {/* Bottom copyright */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-4">
           <div>
-            © {new Date().getFullYear()} None System S.A.S. Todos los derechos reservados. Bogotá, Colombia.
+            © {new Date().getFullYear()} {LEGAL_ENTITY.name} · NIT {LEGAL_ENTITY.nit}. Todos los derechos reservados. Bogotá, Colombia.
           </div>
           <div className="flex items-center gap-1 text-slate-400">
             <span>Hecho con</span>

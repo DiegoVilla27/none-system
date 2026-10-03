@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { Sparkles, MessageCircle, ExternalLink, Menu, X, ArrowRight } from 'lucide-react';
+import { WHATSAPP_START_URL } from '@/lib/contact';
 
 interface NavbarProps {
   onOpenCheckout?: (planId: string) => void;
@@ -11,7 +12,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ onOpenCheckout }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const backofficeUrl = process.env.NEXT_PUBLIC_BACKOFFICE_URL || 'http://localhost:3000';
-  const whatsappUrl = 'https://wa.me/573009999999?text=Hola%2C%20quiero%20probar%20gratis%20el%20asistente%20contable%20None%20System';
+  const whatsappUrl = WHATSAPP_START_URL;
 
   const navLinks = [
     { label: 'Cómo Funciona', href: '#como-funciona' },

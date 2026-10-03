@@ -14,7 +14,10 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test": "NODE_ENV=test GEMINI_API_KEY=test-key DATABASE_URL= WHATSAPP_API_TOKEN= WHATSAPP_PHONE_NUMBER_ID= WHATSAPP_APP_SECRET=test-app-secret RESEND_API_KEY= WOMPI_PUBLIC_KEY=pub_test_testkey WOMPI_INTEGRITY_SECRET=test_integrity_secret WOMPI_EVENTS_SECRET=test_events_secret UPLOAD_DIR=.test-uploads tsx --test test/*.test.ts",
+    "whatsapp:setup": "tsx scripts/whatsapp-setup.ts",
+    "db:purge": "tsx scripts/purge-dev-data.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

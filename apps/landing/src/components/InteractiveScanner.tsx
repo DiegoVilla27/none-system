@@ -182,10 +182,10 @@ export const InteractiveScanner: React.FC = () => {
             Demostración Interactiva en Tiempo Real
           </div>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-            Mira cómo la IA lee recibos colombianos en <span className="text-brand-400">2 segundos</span>
+            Mira cómo la IA lee recibos colombianos en <span className="text-brand-400">segundos</span>
           </h2>
           <p className="mt-4 text-slate-300 text-base sm:text-lg">
-            Haz clic en los ejemplos de comprobantes reales en Colombia para ver la extracción automática de datos contables y el mensaje inmediato en WhatsApp.
+            Haz clic en los ejemplos (datos ficticios de demostración) de comprobantes típicos en Colombia para ver la extracción automática de datos contables y el mensaje inmediato en WhatsApp.
           </p>
         </div>
 

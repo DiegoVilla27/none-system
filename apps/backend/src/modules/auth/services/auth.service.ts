@@ -2,45 +2,83 @@ import { randomUUID } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { IUserRepository } from '../repositories/user.repository.interface.js';
-import { User, UserProfile } from '../entities/user.entity.js';
+import {
+  User,
+  UserProfile,
+  HABEAS_DATA_POLICY_VERSION,
+  isWhatsAppOnlyAccount,
+} from '../entities/user.entity.js';
 import {
   RegisterDto,
+  ConfirmRegistrationDto,
   LoginDto,
   ForgotPasswordDto,
   ResetPasswordDto,
   ChangePasswordDto,
 } from '../dtos/auth.dto.js';
 import { SubscriptionService } from '../../subscriptions/subscription.service.js';
+import { UserSubscription } from '../../subscriptions/subscription.entity.js';
 import { CryptoService } from '../../../core/security/crypto.service.js';
+import { maskPhone } from '../../../core/security/privacy.js';
 import { BadRequestError, UnauthorizedError, NotFoundError } from '../../../core/errors/index.js';
+import { env, isProduction } from '../../../config/env.js';
+import { JWT_ALGORITHM } from '../middlewares/auth.middleware.js';
+import { OtpService } from '../verification/otp.service.js';
+import { IPhoneVerificationRepository } from '../verification/phone-verification.repository.js';
+import { AccountService } from './account.service.js';
+import { EmailService, EmailTemplates } from '../../../core/email/email.service.js';
 
 export interface AuthSession {
   user: UserProfile;
+  /** JWT de sesión: el controlador lo entrega en una cookie HttpOnly, nunca en el cuerpo. */
   token: string;
-  verificationToken?: string;
+  /** Solo en desarrollo sin proveedor de correo configurado. */
+  devEmailVerificationToken?: string;
 }
 
+export interface PendingRegistration {
+  verificationId: string;
+  phoneHint: string;
+  expiresAt: string;
+  devCode?: string;
+}
+
+interface RegistrationPayload {
+  email: string;
+  name: string;
+  passwordHash: string;
+  ipAddress?: string | null;
+  consentAt: string;
+  policyVersion: string;
+}
+
+const BCRYPT_ROUNDS = 12;
+// Hash señuelo para igualar tiempos cuando el usuario no existe (evita enumeración por timing)
+const DUMMY_HASH = bcrypt.hashSync('none-system-dummy-password', BCRYPT_ROUNDS);
+
 export class AuthService {
-  private readonly jwtSecret: string;
   private readonly jwtExpiresIn = '7d';
 
   constructor(
     private readonly userRepository: IUserRepository,
-    private readonly subscriptionService: SubscriptionService
-  ) {
-    this.jwtSecret = process.env.JWT_SECRET || 'none-system-colombia-jwt-secret-key-2026';
-  }
+    private readonly subscriptionService: SubscriptionService,
+    private readonly otpService: OtpService,
+    private readonly verificationRepository: IPhoneVerificationRepository,
+    private readonly accountService: AccountService,
+    private readonly emailService: EmailService
+  ) {}
 
   private toProfile(user: User): UserProfile {
     const {
-      passwordHash,
-      verificationToken,
-      verificationTokenExpires,
-      resetPasswordToken,
-      resetPasswordExpires,
+      passwordHash: _passwordHash,
+      verificationToken: _verificationToken,
+      verificationTokenExpires: _verificationTokenExpires,
+      resetPasswordToken: _resetPasswordToken,
+      resetPasswordExpires: _resetPasswordExpires,
+      sessionVersion: _sessionVersion,
       ...profile
     } = user;
-    return profile;
+    return { ...profile, isWhatsAppOnly: isWhatsAppOnlyAccount(user) };
   }
 
   private generateToken(user: User): string {
@@ -50,84 +88,179 @@ export class AuthService {
         email: user.email,
         role: user.role,
         phoneNumber: user.phoneNumber,
+        sv: user.sessionVersion,
       },
-      this.jwtSecret,
-      { expiresIn: this.jwtExpiresIn }
+      env.JWT_SECRET,
+      { expiresIn: this.jwtExpiresIn, algorithm: JWT_ALGORITHM }
     );
   }
 
-  async register(dto: RegisterDto, ipAddress?: string): Promise<AuthSession> {
-    const normalizedEmail = dto.email.trim().toLowerCase();
-    const cleanPhone = dto.phoneNumber.replace(/\D/g, '');
+  /** Envía el enlace de verificación de correo; devuelve el token solo en desarrollo sin proveedor. */
+  private async sendEmailVerification(user: User, token: string): Promise<string | undefined> {
+    const url = `${env.BACKOFFICE_URL}/verify-email?token=${encodeURIComponent(token)}`;
+    await this.emailService.send({ to: user.email, ...EmailTemplates.verifyEmail(user.name, url) });
+    return !isProduction && !this.emailService.isConfigured ? token : undefined;
+  }
 
-    const existingUser = await this.userRepository.findByEmail(normalizedEmail);
+  private notify(user: User, template: ReturnType<(typeof EmailTemplates)[keyof typeof EmailTemplates]>): void {
+    if (isWhatsAppOnlyAccount(user)) return;
+    // Notificación de cortesía: un fallo de correo no debe interrumpir la operación
+    this.emailService.send({ to: user.email, ...template }).catch(() => undefined);
+  }
+
+  private newEmailVerification(): { token: string; hash: string; expires: string } {
+    const token = CryptoService.generateSecureToken(24);
+    return {
+      token,
+      hash: CryptoService.hashToken(token),
+      expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    };
+  }
+
+  /**
+   * Paso 1 del registro: valida los datos y envía un código por WhatsApp al número indicado.
+   * La cuenta solo se crea cuando el usuario demuestra que el número es suyo.
+   */
+  async register(dto: RegisterDto, ipAddress?: string): Promise<PendingRegistration> {
+    const existingUser = await this.userRepository.findByEmail(dto.email);
     if (existingUser) {
       throw new BadRequestError('El correo electrónico ya se encuentra registrado');
     }
 
-    const salt = bcrypt.genSaltSync(10);
-    const passwordHash = bcrypt.hashSync(dto.password, salt);
-    const now = new Date();
-    const verificationToken = CryptoService.generateSecureToken(24);
-    const verificationExpires = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+    const existingByPhone = await this.userRepository.findByPhone(dto.phoneNumber);
+    if (existingByPhone && !isWhatsAppOnlyAccount(existingByPhone)) {
+      throw new BadRequestError('Este número de WhatsApp ya está vinculado a otra cuenta. Si es tuyo, recupera tu contraseña.');
+    }
 
-    const newUser: User = {
-      id: `usr-${randomUUID()}`,
-      email: normalizedEmail,
-      passwordHash,
-      name: dto.name.trim(),
-      phoneNumber: cleanPhone,
-      role: 'user',
-      emailVerified: false,
-      verificationToken,
-      verificationTokenExpires: verificationExpires,
-      habeasDataConsent: {
-        accepted: true,
-        acceptedAt: now.toISOString(),
-        ipAddress: ipAddress || '127.0.0.1',
-        version: 'Ley-1581-2012',
-      },
-      createdAt: now.toISOString(),
-      updatedAt: now.toISOString(),
+    const payload: RegistrationPayload = {
+      email: dto.email,
+      name: dto.name,
+      passwordHash: bcrypt.hashSync(dto.password, BCRYPT_ROUNDS),
+      ipAddress: ipAddress ?? null,
+      consentAt: new Date().toISOString(),
+      policyVersion: HABEAS_DATA_POLICY_VERSION,
     };
 
-    const savedUser = await this.userRepository.create(newUser);
+    const issued = await this.otpService.issue(dto.phoneNumber, 'register', {
+      payload: payload as unknown as Record<string, unknown>,
+    });
 
-    // Inicializar suscripción gratuita asociada a su teléfono de WhatsApp
-    await this.subscriptionService.getOrCreateSubscription(cleanPhone, dto.name.trim());
+    return {
+      verificationId: issued.verificationId,
+      phoneHint: maskPhone(dto.phoneNumber),
+      expiresAt: issued.expiresAt,
+      devCode: issued.devCode,
+    };
+  }
 
-    const token = this.generateToken(savedUser);
+  /**
+   * Paso 2 del registro: verifica el código y crea la cuenta (o vincula la cuenta de WhatsApp existente).
+   */
+  async confirmRegistration(dto: ConfirmRegistrationDto): Promise<AuthSession> {
+    const record = await this.verificationRepository.findById(dto.verificationId);
+    const verified = await this.otpService.verify(record, dto.code, 'register');
+    const payload = verified.payload as unknown as RegistrationPayload | null;
+    if (!payload?.email || !payload.passwordHash) {
+      throw new BadRequestError('La solicitud de registro no es válida. Vuelve a registrarte.');
+    }
+
+    // Revalidar: pudo registrarse otra cuenta mientras tanto
+    if (await this.userRepository.findByEmail(payload.email)) {
+      throw new BadRequestError('El correo electrónico ya se encuentra registrado');
+    }
+
+    const now = new Date().toISOString();
+    const emailVerification = this.newEmailVerification();
+    const consent = {
+      accepted: true,
+      acceptedAt: payload.consentAt,
+      ipAddress: payload.ipAddress ?? null,
+      version: payload.policyVersion,
+      channel: 'web' as const,
+    };
+
+    const existingByPhone = await this.userRepository.findByPhone(verified.phoneNumber);
+    let savedUser: User;
+
+    if (existingByPhone) {
+      if (!isWhatsAppOnlyAccount(existingByPhone)) {
+        throw new BadRequestError('Este número de WhatsApp ya está vinculado a otra cuenta.');
+      }
+      // El titular del número ya usaba el bot: se le habilita el acceso web conservando sus gastos
+      const updated = await this.userRepository.update(existingByPhone.id, {
+        email: payload.email,
+        name: payload.name,
+        passwordHash: payload.passwordHash,
+        phoneVerified: true,
+        emailVerified: false,
+        verificationToken: emailVerification.hash,
+        verificationTokenExpires: emailVerification.expires,
+        habeasDataConsent: consent,
+        sessionVersion: existingByPhone.sessionVersion + 1,
+      });
+      if (!updated) throw new BadRequestError('Error vinculando la cuenta de WhatsApp');
+      savedUser = updated;
+    } else {
+      savedUser = await this.userRepository.create({
+        id: `usr-${randomUUID()}`,
+        email: payload.email,
+        passwordHash: payload.passwordHash,
+        name: payload.name,
+        phoneNumber: verified.phoneNumber,
+        phoneVerified: true,
+        sessionVersion: 0,
+        role: 'user',
+        emailVerified: false,
+        verificationToken: emailVerification.hash,
+        verificationTokenExpires: emailVerification.expires,
+        habeasDataConsent: consent,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    await this.subscriptionService.getOrCreateSubscription(savedUser.phoneNumber, savedUser.name, savedUser.id);
 
     return {
       user: this.toProfile(savedUser),
-      token,
-      verificationToken,
+      token: this.generateToken(savedUser),
+      devEmailVerificationToken: await this.sendEmailVerification(savedUser, emailVerification.token),
     };
   }
 
   async login(dto: LoginDto): Promise<AuthSession> {
-    const normalizedEmail = dto.email.trim().toLowerCase();
-    const user = await this.userRepository.findByEmail(normalizedEmail);
+    const user = await this.userRepository.findByEmail(dto.email);
+    const isMatch = bcrypt.compareSync(dto.password, user?.passwordHash ?? DUMMY_HASH);
 
-    if (!user) {
+    if (!user || !isMatch || isWhatsAppOnlyAccount(user)) {
       throw new UnauthorizedError('Credenciales incorrectas');
     }
-
-    const isMatch = bcrypt.compareSync(dto.password, user.passwordHash);
-    if (!isMatch) {
-      throw new UnauthorizedError('Credenciales incorrectas');
-    }
-
-    const token = this.generateToken(user);
 
     return {
       user: this.toProfile(user),
-      token,
+      token: this.generateToken(user),
+    };
+  }
+
+  async resendEmailVerification(userId: string): Promise<{ message: string; devEmailVerificationToken?: string }> {
+    const user = await this.userRepository.findById(userId);
+    if (!user) throw new NotFoundError('Usuario no encontrado');
+    if (user.emailVerified) throw new BadRequestError('Tu correo ya está verificado.');
+    if (isWhatsAppOnlyAccount(user)) throw new BadRequestError('Tu cuenta no tiene un correo registrado.');
+
+    const verification = this.newEmailVerification();
+    await this.userRepository.update(user.id, {
+      verificationToken: verification.hash,
+      verificationTokenExpires: verification.expires,
+    });
+    return {
+      message: `Te enviamos un enlace de verificación a ${user.email}`,
+      devEmailVerificationToken: await this.sendEmailVerification(user, verification.token),
     };
   }
 
   async verifyEmail(token: string): Promise<{ message: string; user: UserProfile }> {
-    const user = await this.userRepository.findByVerificationToken(token);
+    const user = await this.userRepository.findByVerificationToken(CryptoService.hashToken(token));
     if (!user) {
       throw new BadRequestError('El token de verificación es inválido o ya fue utilizado');
     }
@@ -152,58 +285,52 @@ export class AuthService {
     };
   }
 
-  async requestPasswordReset(
-    dto: ForgotPasswordDto
-  ): Promise<{ message: string; resetToken?: string }> {
-    const normalizedEmail = dto.email.trim().toLowerCase();
-    const user = await this.userRepository.findByEmail(normalizedEmail);
+  /**
+   * Envía un código de recuperación al WhatsApp verificado del usuario.
+   * La respuesta es idéntica exista o no el correo (evita enumeración de cuentas).
+   */
+  async requestPasswordReset(dto: ForgotPasswordDto): Promise<{ message: string; devCode?: string }> {
+    const message =
+      'Si el correo está registrado, enviamos un código de recuperación al WhatsApp asociado a la cuenta.';
+    const user = await this.userRepository.findByEmail(dto.email);
 
-    if (!user) {
-      // Por seguridad evitamos revelar si el email existe
-      return {
-        message: 'Si el correo está registrado, recibirás un enlace de recuperación.',
-      };
+    if (!user || !user.phoneVerified || isWhatsAppOnlyAccount(user)) {
+      return { message };
     }
 
-    const resetToken = CryptoService.generateSecureToken(24);
-    const expires = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hora
-
-    await this.userRepository.update(user.id, {
-      resetPasswordToken: resetToken,
-      resetPasswordExpires: expires,
-    });
-
-    return {
-      message: 'Enlace de restablecimiento generado con éxito.',
-      resetToken, // Devuelto en desarrollo para pruebas inmediatas sin servidor SMTP
-    };
+    try {
+      const issued = await this.otpService.issue(user.phoneNumber, 'reset_password', { userId: user.id });
+      return { message, devCode: issued.devCode };
+    } catch (err) {
+      // No revelar límites ni errores de envío ligados a una cuenta concreta
+      console.warn('[Auth] No se pudo emitir código de recuperación:', (err as Error).message);
+      return { message };
+    }
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
-    const user = await this.userRepository.findByResetToken(dto.token);
-    if (!user) {
-      throw new BadRequestError('El enlace de restablecimiento es inválido o ha caducado');
+    const user = await this.userRepository.findByEmail(dto.email);
+    const record = user ? await this.verificationRepository.findLatestActive(user.phoneNumber, 'reset_password') : null;
+    if (!user || !record || record.userId !== user.id) {
+      throw new BadRequestError('El código es inválido o ya expiró. Solicita uno nuevo.');
     }
 
-    if (user.resetPasswordExpires && new Date(user.resetPasswordExpires) < new Date()) {
-      throw new BadRequestError('El enlace de restablecimiento ha expirado');
-    }
+    await this.otpService.verify(record, dto.code, 'reset_password');
 
-    const salt = bcrypt.genSaltSync(10);
-    const passwordHash = bcrypt.hashSync(dto.newPassword, salt);
-
+    // Cambiar la contraseña cierra todas las sesiones abiertas
     await this.userRepository.update(user.id, {
-      passwordHash,
-      resetPasswordToken: null,
-      resetPasswordExpires: null,
+      passwordHash: bcrypt.hashSync(dto.newPassword, BCRYPT_ROUNDS),
+      sessionVersion: user.sessionVersion + 1,
     });
+    this.notify(user, EmailTemplates.passwordChanged(user.name));
 
     return {
       message: 'Tu contraseña ha sido restablecida exitosamente. Ya puedes iniciar sesión.',
     };
   }
 
-  async changePassword(userId: string, dto: ChangePasswordDto): Promise<{ message: string }> {
+  /** Cambia la contraseña, revoca las demás sesiones y devuelve un token nuevo para la sesión actual. */
+  async changePassword(userId: string, dto: ChangePasswordDto): Promise<{ message: string; token: string }> {
     const user = await this.userRepository.findById(userId);
     if (!user) {
       throw new NotFoundError('Usuario no encontrado');
@@ -214,28 +341,74 @@ export class AuthService {
       throw new BadRequestError('La contraseña actual es incorrecta');
     }
 
-    const salt = bcrypt.genSaltSync(10);
-    const passwordHash = bcrypt.hashSync(dto.newPassword, salt);
-
-    await this.userRepository.update(user.id, {
-      passwordHash,
+    const updated = await this.userRepository.update(user.id, {
+      passwordHash: bcrypt.hashSync(dto.newPassword, BCRYPT_ROUNDS),
+      sessionVersion: user.sessionVersion + 1,
     });
+    this.notify(user, EmailTemplates.passwordChanged(user.name));
 
     return {
-      message: 'Contraseña modificada correctamente.',
+      message: 'Contraseña modificada. Cerramos las sesiones abiertas en otros dispositivos.',
+      token: this.generateToken(updated!),
     };
   }
 
-  async getMe(userId: string): Promise<{ user: UserProfile; subscription: any }> {
+  /** Cierra todas las sesiones del usuario en todos los dispositivos. */
+  async logoutEverywhere(userId: string): Promise<void> {
     const user = await this.userRepository.findById(userId);
-    if (!user) {
-      throw new NotFoundError('Usuario no encontrado');
+    if (!user) return;
+    await this.userRepository.update(user.id, { sessionVersion: user.sessionVersion + 1 });
+  }
+
+  /**
+   * Cuentas creadas antes de la verificación obligatoria: envía un código para confirmar el número.
+   */
+  async sendPhoneVerification(userId: string): Promise<{ phoneHint: string; expiresAt: string; devCode?: string }> {
+    const user = await this.userRepository.findById(userId);
+    if (!user) throw new NotFoundError('Usuario no encontrado');
+    if (user.phoneVerified) throw new BadRequestError('Tu número de WhatsApp ya está verificado.');
+
+    const issued = await this.otpService.issue(user.phoneNumber, 'verify_phone', { userId: user.id });
+    return { phoneHint: maskPhone(user.phoneNumber), expiresAt: issued.expiresAt, devCode: issued.devCode };
+  }
+
+  async confirmPhoneVerification(userId: string, code: string): Promise<{ user: UserProfile }> {
+    const user = await this.userRepository.findById(userId);
+    if (!user) throw new NotFoundError('Usuario no encontrado');
+
+    const record = await this.verificationRepository.findLatestActive(user.phoneNumber, 'verify_phone');
+    if (!record || record.userId !== user.id) {
+      throw new BadRequestError('El código es inválido o ya expiró. Solicita uno nuevo.');
+    }
+    await this.otpService.verify(record, code, 'verify_phone');
+
+    const updated = await this.userRepository.update(user.id, { phoneVerified: true });
+    await this.subscriptionService.getOrCreateSubscription(user.phoneNumber, user.name, user.id);
+    return { user: this.toProfile(updated!) };
+  }
+
+  async deleteAccount(userId: string, password: string): Promise<{ message: string }> {
+    const user = await this.userRepository.findById(userId);
+    if (!user) throw new NotFoundError('Usuario no encontrado');
+    if (!bcrypt.compareSync(password, user.passwordHash)) {
+      throw new BadRequestError('La contraseña es incorrecta');
     }
 
-    const subscription = await this.subscriptionService.getOrCreateSubscription(
-      user.phoneNumber,
-      user.name
-    );
+    await this.accountService.deleteAccount(user.id);
+    this.notify(user, EmailTemplates.accountDeleted(user.name));
+    return { message: 'Tu cuenta y todos tus datos fueron eliminados de forma permanente.' };
+  }
+
+  async getMe(userId: string): Promise<{ user: UserProfile; subscription: UserSubscription | null }> {
+    const user = await this.userRepository.findById(userId);
+    if (!user) {
+      throw new UnauthorizedError('Tu sesión ya no es válida');
+    }
+
+    // El cupo solo se asocia a números verificados
+    const subscription = user.phoneVerified
+      ? await this.subscriptionService.getOrCreateSubscription(user.phoneNumber, user.name, user.id)
+      : null;
 
     return {
       user: this.toProfile(user),

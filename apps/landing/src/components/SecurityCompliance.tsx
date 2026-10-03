@@ -9,22 +9,22 @@ export const SecurityCompliance: React.FC = () => {
       icon: ShieldCheck,
       color: 'text-emerald-400',
       border: 'border-emerald-500/30',
-      title: 'Meta Cloud API Oficial (0% Riesgo de Baneo)',
-      desc: 'Operamos exclusivamente sobre la infraestructura oficial certificada de Meta. A diferencia de bots piratas o scripts que bloquean líneas de WhatsApp, tu número comercial está 100% blindado bajo los términos de servicio de Meta Business.',
+      title: 'API Oficial de WhatsApp Business (Meta)',
+      desc: 'Nuestro bot funciona sobre la plataforma oficial de Meta, no con herramientas no autorizadas que simulan WhatsApp Web. Tú solo le escribes a nuestro número: tu línea no se conecta a ningún software de terceros.',
     },
     {
       icon: FileCheck,
       color: 'text-brand-400',
       border: 'border-brand-500/30',
       title: 'Adaptado a la DIAN y Estatuto Tributario',
-      desc: 'Nuestra IA reconoce facturación electrónica, CUFE, NIT con dígito de verificación y separa con exactitud el IVA del Impuesto Nacional al Consumo (INC), protegiendo tus deducciones fiscales de renta y tus declaraciones de IVA.',
+      desc: 'La IA reconoce facturación electrónica, CUFE, NIT con dígito de verificación y separa el IVA del Impuesto Nacional al Consumo (INC). Siempre puedes revisar y corregir los datos; la procedencia de costos y deducciones depende de tu situación tributaria y debe validarla tu contador.',
     },
     {
       icon: Lock,
       color: 'text-cyan-400',
       border: 'border-cyan-500/30',
-      title: 'Habeas Data & Encriptación Bancaria (AES-256)',
-      desc: 'Cumplimos rigurosamente con la Ley Estatutaria 1581 de 2012 de Protección de Datos Personales en Colombia. Tus documentos se encriptan de extremo a extremo y solo tú y tu contador tienen acceso a ellos.',
+      title: 'Habeas Data y Soportes Cifrados (AES-256)',
+      desc: 'Tratamos tus datos según la Ley 1581 de 2012 y solo con tu autorización. Tus imágenes y PDF se guardan cifrados con AES-256-GCM, viajan por conexiones HTTPS y solo tu cuenta puede verlos. Puedes descargar o eliminar tus datos cuando quieras.',
     },
   ];
 

@@ -34,16 +34,29 @@ export const errorHandler = (
     return;
   }
 
-  // Handle AppError instances
+  // Handle AppError instances (los detalles internos de proveedores no se exponen al cliente)
   if (err instanceof AppError) {
+    if (err.statusCode >= 500) {
+      console.error(`💥 ${err.name}: ${err.message}`, err.details instanceof Error ? err.details.message : '');
+    }
     res.status(err.statusCode).json({
       success: false,
       error: {
         message: err.message,
         code: err.name,
-        details: err.details,
+        details: err.statusCode < 500 ? err.details : undefined,
       },
     });
+    return;
+  }
+
+  // JSON mal formado
+  if ((err as { type?: string }).type === 'entity.parse.failed') {
+    res.status(400).json({ success: false, error: { message: 'JSON inválido', code: 'INVALID_JSON' } });
+    return;
+  }
+  if ((err as { type?: string }).type === 'entity.too.large') {
+    res.status(413).json({ success: false, error: { message: 'Solicitud demasiado grande', code: 'PAYLOAD_TOO_LARGE' } });
     return;
   }
 
@@ -52,7 +65,7 @@ export const errorHandler = (
     res.status(400).json({
       success: false,
       error: {
-        message: 'Validation error',
+        message: err.issues[0]?.message || 'Datos inválidos',
         code: 'VALIDATION_ERROR',
         details: err.flatten().fieldErrors,
       },

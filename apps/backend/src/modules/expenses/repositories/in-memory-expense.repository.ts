@@ -1,6 +1,5 @@
 import { Expense } from '../entities/expense.entity.js';
-import { FilterExpenseDto } from '../dtos/expense.dto.js';
-import { IExpenseRepository } from './expense.repository.interface.js';
+import { IExpenseRepository, ExpenseQuery, MonthAggregate } from './expense.repository.interface.js';
 
 export class InMemoryExpenseRepository implements IExpenseRepository {
   private expenses: Map<string, Expense> = new Map();
@@ -15,12 +14,31 @@ export class InMemoryExpenseRepository implements IExpenseRepository {
     return expense ? { ...expense } : null;
   }
 
-  async findAll(filter?: FilterExpenseDto): Promise<Expense[]> {
+  async findByImageUrl(imageUrl: string): Promise<Expense | null> {
+    for (const e of this.expenses.values()) {
+      if (e.imageUrl === imageUrl) return { ...e };
+    }
+    return null;
+  }
+
+  async findAll(filter?: ExpenseQuery): Promise<Expense[]> {
     let list = Array.from(this.expenses.values());
 
     if (filter) {
       if (filter.userId) {
-        list = list.filter((e) => !e.userId || e.userId === filter.userId);
+        list = list.filter((e) => e.userId === filter.userId);
+      }
+      if (filter.fechaFrom) {
+        list = list.filter((e) => e.fecha >= filter.fechaFrom!);
+      }
+      if (filter.fechaTo) {
+        list = list.filter((e) => e.fecha <= filter.fechaTo!);
+      }
+      if (filter.createdFrom) {
+        list = list.filter((e) => new Date(e.createdAt) >= filter.createdFrom!);
+      }
+      if (filter.createdTo) {
+        list = list.filter((e) => new Date(e.createdAt) < filter.createdTo!);
       }
       if (filter.tipoDocumento) {
         list = list.filter((e) => e.tipoDocumento === filter.tipoDocumento);
@@ -38,7 +56,7 @@ export class InMemoryExpenseRepository implements IExpenseRepository {
       if (filter.year) {
         list = list.filter((e) => e.fecha.startsWith(filter.year!));
       }
-      if (filter.month) {
+      if (filter.month && filter.year) {
         const paddedMonth = filter.month.padStart(2, '0');
         list = list.filter((e) => {
           const parts = e.fecha.split('-');
@@ -48,7 +66,40 @@ export class InMemoryExpenseRepository implements IExpenseRepository {
     }
 
     // Ordenar de más reciente a más antiguo
-    return list.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+    const sorted = list
+      .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.createdAt.localeCompare(a.createdAt))
+      .map((e) => ({ ...e }));
+    return filter?.limit ? sorted.slice(0, filter.limit) : sorted;
+  }
+
+  async findDuplicateCandidates(
+    userId: string,
+    criteria: { fileHash?: string | null; cufe?: string | null; total?: number }
+  ): Promise<Expense[]> {
+    return [...this.expenses.values()]
+      .filter(
+        (e) =>
+          e.userId === userId &&
+          ((criteria.fileHash && e.fileHash === criteria.fileHash) ||
+            (criteria.cufe && e.cufe === criteria.cufe) ||
+            (criteria.total !== undefined && e.total === criteria.total))
+      )
+      .slice(0, 50)
+      .map((e) => ({ ...e }));
+  }
+
+  async aggregateByMonth(userId: string, options: { year?: number } = {}): Promise<MonthAggregate[]> {
+    const byMonth = new Map<string, MonthAggregate>();
+    for (const e of this.expenses.values()) {
+      if (e.userId !== userId) continue;
+      if (options.year && !e.fecha.startsWith(`${options.year}-`)) continue;
+      const month = e.fecha.slice(0, 7);
+      const agg = byMonth.get(month) ?? { month, count: 0, total: 0 };
+      agg.count += 1;
+      agg.total += e.total;
+      byMonth.set(month, agg);
+    }
+    return [...byMonth.values()].sort((a, b) => b.month.localeCompare(a.month));
   }
 
   async update(id: string, updates: Partial<Expense>): Promise<Expense | null> {

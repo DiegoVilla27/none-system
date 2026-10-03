@@ -1,127 +1,153 @@
-import { Request, Response, NextFunction } from 'express';
-import { AuthService } from '../services/auth.service.js';
+import { Request, Response } from 'express';
+import { AuthService, AuthSession } from '../services/auth.service.js';
 import {
   registerSchema,
+  confirmRegistrationSchema,
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
   changePasswordSchema,
   verifyEmailSchema,
+  verifyPhoneSchema,
+  deleteAccountSchema,
 } from '../dtos/auth.dto.js';
+import { asyncHandler } from '../../../core/middlewares/async-handler.js';
 import { UnauthorizedError } from '../../../core/errors/index.js';
+import { setSessionCookie, clearSessionCookie } from '../middlewares/auth.middleware.js';
+
+const currentUserId = (req: Request): string => {
+  if (!req.user?.sub) throw new UnauthorizedError('Debes iniciar sesión');
+  return req.user.sub;
+};
+
+/** Entrega la sesión en una cookie HttpOnly; el token nunca viaja en el cuerpo de la respuesta. */
+const startSession = (res: Response, session: AuthSession) => {
+  setSessionCookie(res, session.token);
+  const { token: _token, ...body } = session;
+  return body;
+};
 
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const validated = registerSchema.parse(req.body);
-      const ip = req.ip || req.socket.remoteAddress;
-      const session = await this.authService.register(validated, ip);
+  register = asyncHandler(async (req: Request, res: Response) => {
+    const validated = registerSchema.parse(req.body);
+    const pending = await this.authService.register(validated, req.ip || req.socket.remoteAddress);
 
-      res.status(201).json({
-        status: 'success',
-        message: 'Usuario registrado exitosamente',
-        data: session,
-      });
-    } catch (error) {
-      next(error);
-    }
-  };
+    res.status(202).json({
+      status: 'success',
+      message: `Te enviamos un código de verificación por WhatsApp al número ${pending.phoneHint}`,
+      data: pending,
+    });
+  });
 
-  login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const validated = loginSchema.parse(req.body);
-      const session = await this.authService.login(validated);
+  confirmRegistration = asyncHandler(async (req: Request, res: Response) => {
+    const validated = confirmRegistrationSchema.parse(req.body);
+    const session = await this.authService.confirmRegistration(validated);
 
-      res.status(200).json({
-        status: 'success',
-        message: 'Sesión iniciada correctamente',
-        data: session,
-      });
-    } catch (error) {
-      next(error);
-    }
-  };
+    res.status(201).json({
+      status: 'success',
+      message: 'Cuenta creada y número de WhatsApp verificado',
+      data: startSession(res, session),
+    });
+  });
 
-  verifyEmail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const validated = verifyEmailSchema.parse(req.body);
-      const result = await this.authService.verifyEmail(validated.token);
+  login = asyncHandler(async (req: Request, res: Response) => {
+    const validated = loginSchema.parse(req.body);
+    const session = await this.authService.login(validated);
 
-      res.status(200).json({
-        status: 'success',
-        message: result.message,
-        data: result.user,
-      });
-    } catch (error) {
-      next(error);
-    }
-  };
+    res.status(200).json({
+      status: 'success',
+      message: 'Sesión iniciada correctamente',
+      data: startSession(res, session),
+    });
+  });
 
-  forgotPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const validated = forgotPasswordSchema.parse(req.body);
-      const result = await this.authService.requestPasswordReset(validated);
+  logout = asyncHandler(async (_req: Request, res: Response) => {
+    clearSessionCookie(res);
+    res.status(200).json({ status: 'success', message: 'Sesión cerrada' });
+  });
 
-      res.status(200).json({
-        status: 'success',
-        message: result.message,
-        data: {
-          resetToken: result.resetToken,
-        },
-      });
-    } catch (error) {
-      next(error);
-    }
-  };
+  logoutEverywhere = asyncHandler(async (req: Request, res: Response) => {
+    await this.authService.logoutEverywhere(currentUserId(req));
+    clearSessionCookie(res);
+    res.status(200).json({ status: 'success', message: 'Cerramos tu sesión en todos los dispositivos' });
+  });
 
-  resetPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const validated = resetPasswordSchema.parse(req.body);
-      const result = await this.authService.resetPassword(validated);
+  verifyEmail = asyncHandler(async (req: Request, res: Response) => {
+    const validated = verifyEmailSchema.parse(req.body);
+    const result = await this.authService.verifyEmail(validated.token);
 
-      res.status(200).json({
-        status: 'success',
-        message: result.message,
-      });
-    } catch (error) {
-      next(error);
-    }
-  };
+    res.status(200).json({
+      status: 'success',
+      message: result.message,
+      data: result.user,
+    });
+  });
 
-  changePassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      if (!req.user?.sub) {
-        throw new UnauthorizedError('Debes iniciar sesión para cambiar la contraseña');
-      }
+  resendEmailVerification = asyncHandler(async (req: Request, res: Response) => {
+    const result = await this.authService.resendEmailVerification(currentUserId(req));
+    res.status(200).json({ status: 'success', message: result.message, data: result });
+  });
 
-      const validated = changePasswordSchema.parse(req.body);
-      const result = await this.authService.changePassword(req.user.sub, validated);
+  forgotPassword = asyncHandler(async (req: Request, res: Response) => {
+    const validated = forgotPasswordSchema.parse(req.body);
+    const result = await this.authService.requestPasswordReset(validated);
 
-      res.status(200).json({
-        status: 'success',
-        message: result.message,
-      });
-    } catch (error) {
-      next(error);
-    }
-  };
+    res.status(200).json({
+      status: 'success',
+      message: result.message,
+      data: { message: result.message, devCode: result.devCode },
+    });
+  });
 
-  getMe = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      if (!req.user?.sub) {
-        throw new UnauthorizedError('Debes iniciar sesión');
-      }
+  resetPassword = asyncHandler(async (req: Request, res: Response) => {
+    const validated = resetPasswordSchema.parse(req.body);
+    const result = await this.authService.resetPassword(validated);
 
-      const result = await this.authService.getMe(req.user.sub);
+    res.status(200).json({
+      status: 'success',
+      message: result.message,
+      data: result,
+    });
+  });
 
-      res.status(200).json({
-        status: 'success',
-        data: result,
-      });
-    } catch (error) {
-      next(error);
-    }
-  };
+  changePassword = asyncHandler(async (req: Request, res: Response) => {
+    const validated = changePasswordSchema.parse(req.body);
+    const { message, token } = await this.authService.changePassword(currentUserId(req), validated);
+    setSessionCookie(res, token);
+
+    res.status(200).json({ status: 'success', message, data: { message } });
+  });
+
+  sendPhoneVerification = asyncHandler(async (req: Request, res: Response) => {
+    const result = await this.authService.sendPhoneVerification(currentUserId(req));
+    res.status(200).json({
+      status: 'success',
+      message: `Te enviamos un código por WhatsApp al número ${result.phoneHint}`,
+      data: result,
+    });
+  });
+
+  confirmPhoneVerification = asyncHandler(async (req: Request, res: Response) => {
+    const { code } = verifyPhoneSchema.parse(req.body);
+    const result = await this.authService.confirmPhoneVerification(currentUserId(req), code);
+    res.status(200).json({ status: 'success', message: 'Número de WhatsApp verificado', data: result });
+  });
+
+  deleteAccount = asyncHandler(async (req: Request, res: Response) => {
+    const { password } = deleteAccountSchema.parse(req.body);
+    const result = await this.authService.deleteAccount(currentUserId(req), password);
+    clearSessionCookie(res);
+    res.status(200).json({ status: 'success', message: result.message, data: result });
+  });
+
+  getMe = asyncHandler(async (req: Request, res: Response) => {
+    const result = await this.authService.getMe(currentUserId(req));
+
+    res.status(200).json({
+      status: 'success',
+      data: result,
+    });
+  });
 }

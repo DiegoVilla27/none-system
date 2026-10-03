@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { Sparkles, Scan, LayoutDashboard, ReceiptText, ArrowUpRight } from 'lucide-react';
+import { Sparkles, Scan, LayoutDashboard, ReceiptText, PenLine, CreditCard } from 'lucide-react';
 import { Button } from '@/components/atoms/Button/Button';
 
 import { useAuth } from '@/context/AuthContext';
@@ -24,8 +24,10 @@ export const Navbar: React.FC<NavbarProps> = ({ className }) => {
   const navLinks = [
     { label: 'Dashboard', href: '/', icon: <LayoutDashboard className="w-4 h-4" /> },
     { label: 'Escanear', href: '/scan', icon: <Scan className="w-4 h-4" /> },
-    { label: 'Historial de Gastos', href: '/expenses', icon: <ReceiptText className="w-4 h-4" /> },
-    { label: 'Seguridad / Perfil', href: '/profile', icon: <User className="w-4 h-4" /> },
+    { label: 'Gasto Manual', href: '/expenses/new', icon: <PenLine className="w-4 h-4" /> },
+    { label: 'Historial', href: '/expenses', icon: <ReceiptText className="w-4 h-4" /> },
+    { label: 'Plan', href: '/billing', icon: <CreditCard className="w-4 h-4" /> },
+    { label: 'Perfil', href: '/profile', icon: <User className="w-4 h-4" /> },
   ];
 
   return (

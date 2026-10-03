@@ -11,7 +11,7 @@ import { Button } from '@/components/atoms/Button/Button';
 import { useExpenses } from '@/hooks/useExpenses';
 import { useAuth } from '@/context/AuthContext';
 import { exportExpensesToCSV } from '@/lib/export-excel';
-import { ReceiptText, Plus, RefreshCw, Download, Lock } from 'lucide-react';
+import { ReceiptText, Plus, RefreshCw, Download, Lock, PenLine } from 'lucide-react';
 
 export default function ExpensesPage() {
   const router = useRouter();
@@ -85,6 +85,16 @@ export default function ExpensesPage() {
             >
               Refrescar
             </Button>
+
+            <Link href="/expenses/new">
+              <Button
+                variant="outline"
+                size="md"
+                leftIcon={<PenLine className="w-4 h-4" />}
+              >
+                Gasto Manual
+              </Button>
+            </Link>
 
             <Link href="/scan">
               <Button

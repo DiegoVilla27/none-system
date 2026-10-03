@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1600px; height: 838px; overflow: hidden; }
+  body {
+    font-family: -apple-system, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+    background: #070d1a;
+    color: #e2e8f0;
+    position: relative;
+  }
+  .glow { position: absolute; border-radius: 50%; filter: blur(120px); }
+  .g1 { width: 720px; height: 720px; left: -200px; top: -260px; background: rgba(34, 211, 238, 0.22); }
+  .g2 { width: 620px; height: 620px; right: -120px; bottom: -280px; background: rgba(20, 184, 166, 0.25); }
+  .grid {
+    position: absolute; inset: 0;
+    background-image: linear-gradient(rgba(148,163,184,0.06) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(148,163,184,0.06) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse at 30% 40%, black 30%, transparent 75%);
+  }
+  .wrap { position: relative; display: flex; height: 100%; padding: 88px 96px; gap: 72px; align-items: center; }
+  .left { flex: 1.15; }
+  .brand { display: flex; align-items: center; gap: 18px; margin-bottom: 44px; }
+  .logo {
+    width: 72px; height: 72px; border-radius: 20px;
+    background: linear-gradient(135deg, rgba(34,211,238,0.25), rgba(20,184,166,0.35));
+    border: 2px solid rgba(34,211,238,0.5);
+    display: grid; place-items: center;
+    box-shadow: 0 0 40px rgba(34,211,238,0.35);
+  }
+  .wordmark { font-size: 46px; font-weight: 800; letter-spacing: -1px; color: #f8fafc; }
+  .wordmark span { color: #22d3ee; }
+  .flag { margin-left: 8px; font-size: 18px; font-weight: 600; color: #67e8f9; border: 1px solid rgba(34,211,238,0.35);
+          background: rgba(34,211,238,0.08); padding: 6px 14px; border-radius: 999px; }
+  h1 { font-size: 66px; line-height: 1.08; font-weight: 800; letter-spacing: -2px; color: #f8fafc; margin-bottom: 40px; }
+  h1 em { font-style: normal; background: linear-gradient(90deg, #22d3ee, #2dd4bf); -webkit-background-clip: text; color: transparent; }
+  .chips { display: flex; flex-direction: column; gap: 16px; }
+  .chip { display: flex; align-items: center; gap: 16px; font-size: 26px; color: #cbd5e1; }
+  .chip i { font-style: normal; width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center;
+            background: rgba(15,23,42,0.9); border: 1px solid rgba(148,163,184,0.18); font-size: 26px; }
+  .chip b { color: #f1f5f9; font-weight: 700; }
+  .right { flex: 0.85; display: flex; justify-content: center; }
+  .phone {
+    width: 400px; height: 680px; border-radius: 56px; padding: 14px;
+    background: linear-gradient(160deg, #1e293b, #0f172a);
+    border: 2px solid rgba(148,163,184,0.25);
+    box-shadow: 0 40px 80px rgba(0,0,0,0.55), 0 0 60px rgba(34,211,238,0.15);
+    transform: rotate(4deg);
+  }
+  .screen { width: 100%; height: 100%; border-radius: 44px; overflow: hidden; background: #0b141a; display: flex; flex-direction: column; }
+  .bar { background: #1f2c33; padding: 34px 22px 16px; display: flex; align-items: center; gap: 12px; }
+  .avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #22d3ee, #14b8a6); display: grid; place-items: center; }
+  .bar .name { font-size: 19px; font-weight: 700; color: #e9edef; }
+  .bar .status { font-size: 14px; color: #8696a0; }
+  .chat { flex: 1; padding: 18px 16px; display: flex; flex-direction: column; gap: 12px;
+          background-image: radial-gradient(rgba(255,255,255,0.025) 1px, transparent 1px); background-size: 18px 18px; }
+  .msg { max-width: 82%; padding: 10px 14px; border-radius: 14px; font-size: 16px; line-height: 1.35; color: #e9edef; }
+  .out { align-self: flex-end; background: #005c4b; border-top-right-radius: 4px; }
+  .in { align-self: flex-start; background: #1f2c33; border-top-left-radius: 4px; }
+  .receipt { width: 168px; height: 150px; border-radius: 10px; background: #f8fafc; padding: 12px; display: flex; flex-direction: column; gap: 7px; margin-bottom: 6px; }
+  .receipt .l { height: 8px; border-radius: 4px; background: #cbd5e1; }
+  .receipt .t { height: 12px; border-radius: 4px; background: #0f766e; width: 60%; margin-top: auto; }
+  .ok { color: #2dd4bf; font-weight: 700; }
+  .row { display: flex; justify-content: space-between; gap: 10px; }
+  .muted { color: #8696a0; }
+</style>
+</head>
+<body>
+  <div class="glow g1"></div>
+  <div class="glow g2"></div>
+  <div class="grid"></div>
+  <div class="wrap">
+    <div class="left">
+      <div class="brand">
+        <div class="logo">
+          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 3v4M21 5h-4M5 17v4M7 19H3"/>
+          </svg>
+        </div>
+        <div class="wordmark">none<span>.system</span></div>
+        <div class="flag">🇨🇴 Colombia</div>
+      </div>
+      <h1>Tus facturas y gastos<br><em>al día desde WhatsApp</em></h1>
+      <div class="chips">
+        <div class="chip"><i>📸</i><span>Envía la <b>foto o PDF</b> de tu factura</span></div>
+        <div class="chip"><i>✍️</i><span>Escribe gastos sin recibo: <b>arroz 5000</b></span></div>
+        <div class="chip"><i>📊</i><span>Consulta tu <b>resumen del mes</b> al instante</span></div>
+      </div>
+    </div>
+    <div class="right">
+      <div class="phone">
+        <div class="screen">
+          <div class="bar">
+            <div class="avatar">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0b141a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg>
+            </div>
+            <div><div class="name">none.system</div><div class="status">asistente contable</div></div>
+          </div>
+          <div class="chat">
+            <div class="msg out">
+              <div class="receipt"><div class="l"></div><div class="l" style="width:70%"></div><div class="l" style="width:85%"></div><div class="l" style="width:55%"></div><div class="t"></div></div>
+              Factura del mercado
+            </div>
+            <div class="msg in">
+              <div class="ok">✅ Comprobante registrado</div>
+              <div class="row"><span class="muted">Comercio</span><span>Supermercado</span></div>
+              <div class="row"><span class="muted">Total</span><span>$ 119.000</span></div>
+              <div class="row"><span class="muted">IVA</span><span>$ 19.000</span></div>
+            </div>
+            <div class="msg out">arroz 5000</div>
+            <div class="msg in"><span class="ok">✅</span> Gasto registrado · $ 5.000</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
