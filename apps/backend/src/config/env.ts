@@ -18,7 +18,7 @@ const envSchema = z.object({
   JWT_SECRET: z.string().default('none-system-colombia-jwt-secret-key-2026'),
 
   // WhatsApp Meta Cloud API Configuration
-  WHATSAPP_VERIFY_TOKEN: z.string().default('none_system_verify_token'),
+  WHATSAPP_VERIFY_TOKEN: z.string().default('none_system_verify_token_2026'),
   WHATSAPP_API_TOKEN: z.string().default(''),
   WHATSAPP_PHONE_NUMBER_ID: z.string().default(''),
   WHATSAPP_API_VERSION: z.string().default('v21.0'),
