@@ -17,7 +17,7 @@ export const BeforeAfter: React.FC = () => {
             El desorden de recibos te cuesta más de lo que imaginas
           </h2>
           <p className="mt-4 text-slate-300 text-base sm:text-lg">
-            En Colombia, una microempresa o profesional independiente pierde en promedio <strong className="text-white">$450.000 COP al mes</strong> entre deducciones no reclamadas ante la DIAN y horas perdidas digitando papeles.
+            Para una microempresa o un profesional independiente, los recibos perdidos y las horas digitando papeles se traducen en <strong className="text-white">dinero y tiempo que no vuelven</strong>: IVA descontable sin soporte y gastos que nunca se registraron.
           </p>
         </div>
 
@@ -67,9 +67,9 @@ export const BeforeAfter: React.FC = () => {
             </div>
 
             <div className="mt-8 rounded-xl border border-red-500/20 bg-red-950/20 p-4">
-              <div className="text-xs text-red-300 font-semibold uppercase tracking-wider">Costo Real Estimado:</div>
-              <div className="text-2xl font-black text-red-400 mt-1">~$450.000 COP / mes</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">En tiempo propio desperdiciado e IVA descontable que nunca se cruzó.</div>
+              <div className="text-xs text-red-300 font-semibold uppercase tracking-wider">Costo oculto:</div>
+              <div className="text-2xl font-black text-red-400 mt-1">Horas y soportes perdidos</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">Calcula tu caso con la calculadora de ahorro más abajo (estimación ilustrativa).</div>
             </div>
           </div>
 
@@ -98,7 +98,7 @@ export const BeforeAfter: React.FC = () => {
                 <li className="flex items-start gap-3">
                   <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
                   <span>
-                    <strong className="text-slate-100">Extracción 99.4% precisa:</strong> Inteligencia Artificial entrenada en facturas de Colombia (NIT, Razón Social, IVA 19%, Impoconsumo 8%).
+                    <strong className="text-slate-100">Extracción con IA que puedes revisar:</strong> Inteligencia Artificial entrenada en facturas de Colombia (NIT, Razón Social, IVA 19%, Impoconsumo 8%).
                   </span>
                 </li>
                 <li className="flex items-start gap-3">

@@ -9,13 +9,14 @@
     "build:backoffice": "pnpm --filter @none-system/backoffice build",
     "dev:landing": "pnpm --filter @none-system/landing dev",
     "build:landing": "pnpm --filter @none-system/landing build",
-    "test": "pnpm --filter @none-system/backoffice test",
+    "test": "pnpm --filter @none-system/backend test && pnpm --filter @none-system/backoffice test",
     "test:backoffice": "pnpm --filter @none-system/backoffice test",
     "db:generate": "pnpm --filter @none-system/backend db:generate",
     "db:push": "pnpm --filter @none-system/backend db:push",
     "db:migrate": "pnpm --filter @none-system/backend db:migrate",
     "db:seed": "pnpm --filter @none-system/backend db:seed",
-    "db:studio": "pnpm --filter @none-system/backend db:studio"
+    "db:studio": "pnpm --filter @none-system/backend db:studio",
+    "test:backend": "pnpm --filter @none-system/backend test"
   },
   "keywords": [],
   "author": "",

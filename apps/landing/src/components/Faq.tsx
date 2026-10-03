@@ -11,11 +11,11 @@ interface FaqItem {
 const FAQ_LIST: FaqItem[] = [
   {
     q: '¿Existe algún riesgo de que Meta bloquee mi número de WhatsApp?',
-    a: 'Ninguno. Operamos 100% a través de la Meta Cloud API Oficial. Los bloqueos solo ocurren con herramientas no autorizadas ("scrapers" o librerías piratas que simulan WhatsApp Web). Al usar la API oficial de Meta, tu línea tiene respaldo legal completo y reputación de nivel empresarial.',
+    a: 'Tú solo le escribes a nuestro número oficial, como a cualquier contacto: tu línea no se conecta a ningún software. Nuestro bot opera sobre la API oficial de WhatsApp Business de Meta, no con herramientas no autorizadas que simulan WhatsApp Web.',
   },
   {
     q: '¿Qué pasa si me acabo los comprobantes de mi cupo mensual?',
-    a: 'El bot te enviará una notificación preventiva cuando alcances el 80% de tu cupo. Si llegas al 100%, tus datos y comprobantes anteriores permanecen intactos y accesibles. Puedes ascender de plan en cualquier momento desde esta landing con activación inmediata o esperar al día 1 del siguiente mes calendario para la recarga automática.',
+    a: 'El bot te avisa cuando usas el 80% de tu cupo. Si llegas al 100%, tus datos siguen intactos. Los gastos escritos (sin recibo) tienen su propio cupo: 30 al mes en el Plan Gratuito e ilimitados en los planes pagos. En el Plan Gratuito el cupo se renueva el día 1 de cada mes; los planes pagados duran un mes desde la fecha de pago y no se renuevan automáticamente.',
   },
   {
     q: '¿Cómo le entrego estos datos a mi contador?',
@@ -23,15 +23,23 @@ const FAQ_LIST: FaqItem[] = [
   },
   {
     q: '¿La IA puede leer fotos arrugadas o tirillas de papel térmico?',
-    a: 'Sí. Utilizamos el motor Gemini 2.5 Flash entrenado con millones de documentos físicos reales. Aunque la tirilla tenga dobleces, esté rotada o haya sido tomada con la cámara en un restaurante con luz tenue, el algoritmo reconstruye la información fiscal con más del 99% de precisión.',
+    a: 'En la mayoría de los casos sí: usamos modelos de IA de Google (Gemini) que leen tirillas con dobleces o poca luz. Aun así la IA puede equivocarse, por eso te mostramos lo que extrajo para que lo revises y lo corrijas desde WhatsApp (CAMBIAR / DESHACER) o desde el panel web.',
   },
   {
     q: '¿Qué métodos de pago aceptan en Colombia?',
-    a: 'Aceptamos pagos a través de PSE (todos los bancos colombianos incluyendo Bancolombia, Davivienda, Banco de Bogotá, etc.), tarjetas de crédito/débito (Visa, Mastercard, Amex) y cobros directos por Nequi y Daviplata.',
+    a: 'Los pagos se procesan con Wompi (Bancolombia), una pasarela certificada: PSE, tarjetas de crédito y débito, Nequi y Botón Bancolombia. None System nunca ve ni almacena los datos de tu tarjeta.',
   },
   {
     q: '¿Tengo que firmar algún contrato de permanencia?',
-    a: 'No. Todos nuestros planes son mensuales y sin permanencia mínima. Puedes cancelar tu suscripción o cambiar de categoría en cualquier momento sin penalizaciones ni letras pequeñas.',
+    a: 'No. Todos los planes son mensuales, sin permanencia mínima y sin renovación automática: al terminar el mes vuelves al Plan Gratuito sin cobros adicionales.',
+  },
+  {
+    q: '¿Puedo registrar gastos que no tienen recibo?',
+    a: 'Sí. Escríbele al bot el concepto y el valor, por ejemplo "arroz 5000" o "ayer taxi 12 mil", o usa el formulario de gasto manual en el panel web. No gastan tus comprobantes con foto (el Plan Gratuito incluye 30 gastos escritos al mes y los planes pagos, ilimitados), pero al no tener soporte no sirven como respaldo contable ante la DIAN.',
+  },
+  {
+    q: '¿Cómo elimino mis datos?',
+    a: 'Escribe "ELIMINAR MIS DATOS" al bot o usa la opción "Eliminar mi cuenta" en tu perfil web. Borramos tus comprobantes, imágenes y gastos de forma permanente. Consulta nuestra Política de Tratamiento de Datos para conocer todos tus derechos.',
   },
 ];
 

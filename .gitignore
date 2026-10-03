@@ -20,3 +20,4 @@ Thumbs.db
 
 # TypeScript Build Info
 *.tsbuildinfo
+.test-uploads/

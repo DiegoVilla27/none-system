@@ -4,14 +4,14 @@ import React from 'react';
 import { Check, Sparkles, MessageCircle, ArrowRight, ShieldCheck, Zap } from 'lucide-react';
 import { PRICING_PLANS, SubscriptionPlanId, PlanItem } from '@/lib/plans';
 import { formatCOP } from '@/lib/utils';
+import { WHATSAPP_START_URL } from '@/lib/contact';
 
 interface PricingProps {
   onSelectPlan: (planId: SubscriptionPlanId) => void;
 }
 
 export const Pricing: React.FC<PricingProps> = ({ onSelectPlan }) => {
-  const whatsappUrl =
-    'https://wa.me/573009999999?text=Hola%2C%20quiero%20empezar%20mi%20prueba%20gratuita%20de%2010%20comprobantes%20con%20None%20System';
+  const whatsappUrl = WHATSAPP_START_URL;
 
   return (
     <section id="planes" className="py-24 bg-surface-base/90 border-t border-surface-border relative">
@@ -137,7 +137,7 @@ export const Pricing: React.FC<PricingProps> = ({ onSelectPlan }) => {
         {/* Bottom guarantee */}
         <div className="mt-12 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
           <ShieldCheck className="h-4 w-4 text-brand-400" />
-          <span>Pagos 100% seguros procesados en Colombia mediante PSE, Tarjetas de Crédito y Nequi.</span>
+          <span>Precios en pesos colombianos. Planes mensuales sin renovación automática. Nunca almacenamos datos de tarjetas.</span>
         </div>
       </div>
     </section>

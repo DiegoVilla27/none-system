@@ -13,6 +13,7 @@ import { SecurityCompliance } from '@/components/SecurityCompliance';
 import { Faq } from '@/components/Faq';
 import { Footer } from '@/components/Footer';
 import { SubscriptionPlanId } from '@/lib/plans';
+import { WHATSAPP_START_URL } from '@/lib/contact';
 
 export default function LandingPage() {
   const [selectedPlanForCheckout, setSelectedPlanForCheckout] = useState<SubscriptionPlanId | null>(null);
@@ -33,10 +34,7 @@ export default function LandingPage() {
 
   const handleSelectPlan = (planId: SubscriptionPlanId) => {
     if (planId === 'gratuito') {
-      window.open(
-        'https://wa.me/573009999999?text=Hola%2C%20quiero%20empezar%20mi%20prueba%20gratuita%20de%2010%20comprobantes%20con%20None%20System',
-        '_blank'
-      );
+      window.open(WHATSAPP_START_URL, '_blank', 'noopener,noreferrer');
       return;
     }
     setSelectedPlanForCheckout(planId);
