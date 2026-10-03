@@ -46,8 +46,10 @@ export default function HomePage() {
     totalGastado: 0,
     totalFacturas: 0,
     totalTransferencias: 0,
+    totalManuales: 0,
     numFacturas: 0,
     numTransferencias: 0,
+    numManuales: 0,
     numGastos: 0,
     categorias: [],
   };

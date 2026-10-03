@@ -9,7 +9,8 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [resetToken, setResetToken] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+  const [devCode, setDevCode] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -20,9 +21,8 @@ export default function ForgotPasswordPage() {
     try {
       const res = await requestPasswordReset(email);
       setMessage(res.message);
-      if (res.resetToken) {
-        setResetToken(res.resetToken);
-      }
+      setDevCode(res.devCode ?? null);
+      setSent(true);
     } catch (err: any) {
       setErrorMsg(err.message || 'Error al solicitar restablecimiento.');
     } finally {
@@ -46,7 +46,7 @@ export default function ForgotPasswordPage() {
           </Link>
           <h2 className="text-xl font-bold text-white">Recuperar Contraseña</h2>
           <p className="text-xs text-slate-400 mt-1">
-            Ingresa tu correo y te enviaremos las instrucciones de restablecimiento.
+            Ingresa tu correo y te enviaremos un código al WhatsApp verificado de tu cuenta.
           </p>
         </div>
 
@@ -58,7 +58,7 @@ export default function ForgotPasswordPage() {
             </div>
           )}
 
-          {!resetToken ? (
+          {!sent ? (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
@@ -85,11 +85,11 @@ export default function ForgotPasswordPage() {
                 {loading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Generando enlace...</span>
+                    <span>Enviando código...</span>
                   </>
                 ) : (
                   <>
-                    <span>Enviar Enlace de Recuperación</span>
+                    <span>Enviar Código por WhatsApp</span>
                     <ArrowRight className="h-4 w-4" />
                   </>
                 )}
@@ -106,21 +106,22 @@ export default function ForgotPasswordPage() {
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shadow-glowGreen">
                 <CheckCircle2 className="h-8 w-8" />
               </div>
-              <h3 className="text-xl font-bold text-white">Enlace Generado</h3>
+              <h3 className="text-xl font-bold text-white">Revisa tu WhatsApp</h3>
               <p className="text-xs text-slate-300 max-w-sm mx-auto leading-relaxed">
                 {message}
               </p>
 
-              <div className="rounded-2xl border border-surface-border bg-surface-base p-4 text-xs font-mono text-slate-300 break-all">
-                <div className="text-slate-500 text-[10px] uppercase mb-1">Token de Restablecimiento:</div>
-                <div className="text-brand-300 font-semibold">{resetToken}</div>
-              </div>
+              {devCode && (
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs font-mono text-amber-200">
+                  Modo desarrollo · código: <strong>{devCode}</strong>
+                </div>
+              )}
 
               <Link
-                href={`/reset-password?token=${resetToken}`}
+                href={`/reset-password?email=${encodeURIComponent(email)}`}
                 className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-teal-500 py-3 text-xs font-bold text-white shadow-glow hover:scale-[1.02] transition-all"
               >
-                <span>Restablecer Contraseña Ahora</span>
+                <span>Ingresar el Código</span>
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>

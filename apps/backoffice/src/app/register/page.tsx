@@ -3,12 +3,14 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Sparkles, Mail, Lock, User, Phone, AlertCircle, ArrowRight, Loader2, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Mail, Lock, User, Phone, AlertCircle, ArrowRight, Loader2, ShieldCheck, CheckCircle2, MessageCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/links';
+import type { PendingRegistration } from '@/types/auth.types';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register, isAuthenticated, isLoading } = useAuth();
+  const { register, confirmRegistration, isAuthenticated, isLoading } = useAuth();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -16,6 +18,9 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [habeasDataAccepted, setHabeasDataAccepted] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [pending, setPending] = useState<PendingRegistration | null>(null);
+  const [code, setCode] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -23,10 +28,10 @@ export default function RegisterPage() {
 
   // Guest Guard: Si el usuario ya está autenticado, redirigir al panel
   React.useEffect(() => {
-    if (!isLoading && isAuthenticated && !successToken) {
+    if (!isLoading && isAuthenticated && !successToken && !pending) {
       router.replace('/expenses');
     }
-  }, [isLoading, isAuthenticated, router, successToken]);
+  }, [isLoading, isAuthenticated, router, successToken, pending]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,8 +42,8 @@ export default function RegisterPage() {
       return;
     }
 
-    if (!habeasDataAccepted) {
-      setErrorMsg('Debes aceptar la autorización de tratamiento de datos según la Ley 1581 de 2012.');
+    if (!habeasDataAccepted || !termsAccepted) {
+      setErrorMsg('Debes autorizar el tratamiento de datos personales y aceptar los Términos y Condiciones.');
       return;
     }
 
@@ -51,15 +56,32 @@ export default function RegisterPage() {
         phoneNumber,
         password,
         habeasDataAccepted: true,
+        termsAccepted: true,
       });
+      setPending(res);
+      if (res.devCode) setCode(res.devCode);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Error al crear la cuenta. Por favor verifica tus datos.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      if (res.verificationToken) {
-        setSuccessToken(res.verificationToken);
+  const handleConfirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pending) return;
+    setErrorMsg(null);
+    setLoading(true);
+
+    try {
+      const res = await confirmRegistration(pending.verificationId, code.trim());
+      if (res.devEmailVerificationToken) {
+        setSuccessToken(res.devEmailVerificationToken);
       } else {
         router.push('/expenses');
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Error al crear la cuenta. Por favor verifica tus datos.');
+      setErrorMsg(err.message || 'No pudimos verificar el código.');
     } finally {
       setLoading(false);
     }
@@ -85,7 +107,7 @@ export default function RegisterPage() {
           </Link>
           <h2 className="text-xl font-bold text-white">Crea tu Cuenta Contable</h2>
           <p className="text-xs text-slate-400 mt-1">
-            Empieza con 10 comprobantes gratis y vincula tu número de WhatsApp.
+            Gratis cada mes: 5 comprobantes con foto o PDF y 30 gastos escritos. Vincula tu WhatsApp.
           </p>
         </div>
 
@@ -98,7 +120,62 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {!successToken ? (
+          {pending && !successToken ? (
+            <form onSubmit={handleConfirm} className="space-y-5">
+              <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-4 text-xs text-slate-300">
+                <MessageCircle className="h-5 w-5 shrink-0 text-emerald-400" />
+                <span>
+                  Te enviamos un código de 6 dígitos por <strong className="text-white">WhatsApp</strong> al número{' '}
+                  <strong className="text-white font-mono">{pending.phoneHint}</strong>. Así confirmamos que el número es tuyo
+                  y nadie más puede ver tus comprobantes.
+                </span>
+              </div>
+
+              {pending.devCode && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-[11px] text-amber-200">
+                  Modo desarrollo: el código es <strong className="font-mono">{pending.devCode}</strong>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                  Código de verificación
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  required
+                  maxLength={6}
+                  pattern="\d{6}"
+                  placeholder="123456"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                  className="w-full rounded-xl border border-surface-border bg-surface-base px-4 py-3 text-center text-2xl tracking-[0.5em] font-mono text-white placeholder-slate-600 focus:border-brand-400 focus:outline-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || code.length !== 6}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-teal-500 py-3 text-sm font-bold text-white shadow-glow transition-all hover:from-brand-400 hover:to-teal-400 active:scale-95 disabled:opacity-50"
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                <span>Verificar y crear mi cuenta</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPending(null);
+                  setCode('');
+                }}
+                className="w-full text-xs text-slate-400 hover:text-white"
+              >
+                Corregir mis datos o pedir otro código
+              </button>
+            </form>
+          ) : !successToken ? (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
@@ -164,7 +241,7 @@ export default function RegisterPage() {
                       type="password"
                       required
                       minLength={8}
-                      placeholder="Mínimo 8 caracteres"
+                      placeholder="8+ caracteres, letras y números"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="w-full rounded-xl border border-surface-border bg-surface-base pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-brand-400 focus:outline-none transition-colors"
@@ -191,8 +268,8 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              {/* Habeas Data Checkbox */}
-              <div className="pt-2">
+              {/* Autorización de datos (Ley 1581) y Términos: casillas separadas y sin marcar por defecto */}
+              <div className="pt-2 space-y-3">
                 <label className="flex items-start gap-2.5 cursor-pointer text-xs text-slate-300 select-none">
                   <input
                     type="checkbox"
@@ -201,9 +278,28 @@ export default function RegisterPage() {
                     className="mt-0.5 rounded border-slate-700 bg-surface-base text-brand-500 focus:ring-brand-400 h-4 w-4"
                   />
                   <span>
-                    Autorizo el tratamiento de mis datos personales conforme a la{' '}
-                    <strong className="text-white">Ley 1581 de 2012 (Habeas Data de Colombia)</strong> y
-                    acepto que mi información tributaria se almacene cifrada con estándar AES-256.
+                    Autorizo de manera previa, expresa e informada el tratamiento de mis datos personales y de los
+                    comprobantes que cargue, conforme a la{' '}
+                    <a href={PRIVACY_POLICY_URL} target="_blank" rel="noopener noreferrer" className="text-brand-300 underline">
+                      Política de Tratamiento de Datos
+                    </a>{' '}
+                    (Ley 1581 de 2012), incluida su transmisión a proveedores tecnológicos fuera de Colombia (Google
+                    Gemini para lectura con IA y Meta para WhatsApp).
+                  </span>
+                </label>
+                <label className="flex items-start gap-2.5 cursor-pointer text-xs text-slate-300 select-none">
+                  <input
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                    className="mt-0.5 rounded border-slate-700 bg-surface-base text-brand-500 focus:ring-brand-400 h-4 w-4"
+                  />
+                  <span>
+                    Acepto los{' '}
+                    <a href={TERMS_URL} target="_blank" rel="noopener noreferrer" className="text-brand-300 underline">
+                      Términos y Condiciones
+                    </a>
+                    .
                   </span>
                 </label>
               </div>
@@ -216,11 +312,11 @@ export default function RegisterPage() {
                 {loading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Creando cuenta segura...</span>
+                    <span>Enviando código...</span>
                   </>
                 ) : (
                   <>
-                    <span>Registrarme y Comenzar Gratis</span>
+                    <span>Continuar: verificar mi WhatsApp</span>
                     <ArrowRight className="h-4 w-4" />
                   </>
                 )}
@@ -241,11 +337,11 @@ export default function RegisterPage() {
               </div>
               <h3 className="text-xl font-bold text-white">¡Registro Exitoso!</h3>
               <p className="text-xs text-slate-300 max-w-sm mx-auto leading-relaxed">
-                Tu cuenta ha sido creada y se ha vinculado a tu número de WhatsApp. Para mayor seguridad, verifica tu correo.
+                Tu cuenta fue creada y tu número de WhatsApp quedó verificado. Si ya usabas el bot, tus registros aparecerán en el panel.
               </p>
 
               <div className="rounded-2xl border border-surface-border bg-surface-base p-4 text-xs font-mono text-slate-300 break-all">
-                <div className="text-slate-500 text-[10px] uppercase mb-1">Token de Verificación Generado:</div>
+                <div className="text-slate-500 text-[10px] uppercase mb-1">Modo desarrollo · token de verificación de correo:</div>
                 <div className="text-brand-300 font-semibold">{successToken}</div>
               </div>
 

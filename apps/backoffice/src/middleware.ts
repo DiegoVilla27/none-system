@@ -16,7 +16,6 @@ const PUBLIC_PATHS = [
  * Next.js Edge Middleware Guard:
  * 1. Protege todas las rutas privadas del backoffice (Dashboard, Gastos, Escáner, Perfil, etc.).
  * 2. Si el usuario NO tiene cookie de sesión válida ('none_auth_token'), lo redirige inmediatamente a /login.
- * 3. Si el usuario YA está autenticado y trata de ir a /login o /register, lo redirige al panel principal (/).
  */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -45,10 +44,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // 2. Guard de Rutas Públicas (Guest): Si ya tiene token, no permitir volver a ver login o register
-  if (token && (pathname === '/login' || pathname === '/register')) {
-    return NextResponse.redirect(new URL('/', request.url));
-  }
+  // Nota: no se redirige desde /login cuando hay cookie, porque la sesión pudo ser revocada
+  // (cambio de contraseña, cerrar todas las sesiones). La página de login redirige si /auth/me responde.
 
   return NextResponse.next();
 }

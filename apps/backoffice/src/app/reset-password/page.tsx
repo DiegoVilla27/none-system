@@ -2,16 +2,16 @@
 
 import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Sparkles, Lock, AlertCircle, CheckCircle2, ArrowRight, Loader2 } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { Sparkles, Lock, Mail, AlertCircle, CheckCircle2, ArrowRight, Loader2 } from 'lucide-react';
 import { resetPassword } from '@/lib/api';
 
 function ResetPasswordContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const initialToken = searchParams.get('token') || '';
+  const initialEmail = searchParams.get('email') || '';
 
-  const [token, setToken] = useState(initialToken);
+  const [email, setEmail] = useState(initialEmail);
+  const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -30,10 +30,10 @@ function ResetPasswordContent() {
     setLoading(true);
 
     try {
-      await resetPassword(token, newPassword);
+      await resetPassword(email.trim(), code.trim(), newPassword);
       setIsSuccess(true);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Error al restablecer contraseña. El token puede haber expirado.');
+      setErrorMsg(err.message || 'Error al restablecer contraseña. El código puede haber expirado.');
     } finally {
       setLoading(false);
     }
@@ -55,7 +55,7 @@ function ResetPasswordContent() {
           </Link>
           <h2 className="text-xl font-bold text-white">Nueva Contraseña</h2>
           <p className="text-xs text-slate-400 mt-1">
-            Ingresa y confirma tu nueva clave de acceso seguro.
+            Ingresa el código que te enviamos por WhatsApp y tu nueva contraseña.
           </p>
         </div>
 
@@ -71,15 +71,36 @@ function ResetPasswordContent() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
-                  Token de Seguridad
+                  Correo Electrónico
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
+                  <input
+                    type="email"
+                    required
+                    placeholder="correo@empresa.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-xl border border-surface-border bg-surface-base pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-brand-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                  Código recibido por WhatsApp
                 </label>
                 <input
                   type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
                   required
-                  placeholder="Pega aquí el token recibido"
-                  value={token}
-                  onChange={(e) => setToken(e.target.value)}
-                  className="w-full rounded-xl border border-surface-border bg-surface-base px-3.5 py-2.5 text-xs font-mono text-white placeholder-slate-500 focus:border-brand-400 focus:outline-none"
+                  maxLength={6}
+                  pattern="\d{6}"
+                  placeholder="123456"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                  className="w-full rounded-xl border border-surface-border bg-surface-base px-3.5 py-2.5 text-center text-lg tracking-[0.4em] font-mono text-white placeholder-slate-600 focus:border-brand-400 focus:outline-none"
                 />
               </div>
 
@@ -93,7 +114,7 @@ function ResetPasswordContent() {
                     type="password"
                     required
                     minLength={8}
-                    placeholder="Mínimo 8 caracteres"
+                    placeholder="8+ caracteres, letras y números"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="w-full rounded-xl border border-surface-border bg-surface-base pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-brand-400 focus:outline-none"
@@ -144,7 +165,7 @@ function ResetPasswordContent() {
               </div>
               <h3 className="text-xl font-bold text-white">¡Contraseña Restablecida!</h3>
               <p className="text-xs text-slate-300 max-w-sm mx-auto leading-relaxed">
-                Tu clave ha sido actualizada con éxito y cifrada con estándar AES-256. Ya puedes ingresar al sistema.
+                Tu clave fue actualizada y se guarda protegida con hash bcrypt (nunca en texto plano). Ya puedes ingresar al sistema.
               </p>
               <Link
                 href="/login"

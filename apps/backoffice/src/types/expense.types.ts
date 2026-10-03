@@ -16,9 +16,21 @@ export const EXPENSE_CATEGORIES = [
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 
 /**
- * Tipos de documentos financieros admitidos en Colombia.
+ * Tipos de registro:
+ * - factura: factura, tiquete POS o recibo (con imagen/PDF)
+ * - transferencia: comprobante bancario (con imagen/PDF)
+ * - manual: gasto escrito a mano, sin soporte (nunca deducible ante la DIAN)
  */
-export type DocumentType = 'factura' | 'transferencia';
+export type DocumentType = 'factura' | 'transferencia' | 'manual';
+
+/** Tipos que se pueden escanear (tienen soporte documental). */
+export type ScanDocumentType = Exclude<DocumentType, 'manual'>;
+
+export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
+  factura: 'Factura / Recibo',
+  transferencia: 'Transferencia',
+  manual: 'Gasto manual',
+};
 
 /**
  * Nivel de certeza con el que la IA extrajo los datos del documento.
@@ -64,11 +76,12 @@ export interface Expense {
   lineasArticulos: ExpenseItem[];
   confianzaExtraccion: ExtractionConfidence;
   notas?: string | null;
-  imageUrl: string;
-  imageOriginalName: string;
+  imageUrl?: string | null; // null en gastos manuales
+  imageOriginalName?: string | null;
+  source?: 'web' | 'whatsapp';
   estado: ExpenseStatus;
   isDianCompliant?: boolean; // Cumplimiento de requisitos tributarios DIAN (Art. 771-2 E.T.)
-  encryptedAtRest?: boolean; // Cifrado AES-256 (Habeas Data Ley 1581)
+  encryptedAtRest?: boolean; // Soporte cifrado en reposo con AES-256-GCM
   createdAt: string;
   updatedAt: string;
 }
@@ -92,8 +105,23 @@ export interface MonthlySummary {
   totalGastado: number;
   totalFacturas: number;
   totalTransferencias: number;
+  totalManuales: number;
   numFacturas: number;
   numTransferencias: number;
+  numManuales: number;
   numGastos: number;
   categorias: CategorySummary[];
+}
+
+/**
+ * Datos para registrar un gasto manual (sin soporte).
+ */
+export interface ManualExpenseInput {
+  descripcion: string;
+  total: number;
+  fecha?: string;
+  categoria?: ExpenseCategory;
+  comercio?: string | null;
+  cantidad?: number | null;
+  notas?: string | null;
 }

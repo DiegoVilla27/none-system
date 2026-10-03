@@ -59,19 +59,22 @@ export const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
 
   const handleCopyWhatsApp = () => {
     let text = `📊 *Resumen de ${monthName} ${summary.year}*\n\n`;
-    text += `*Total gastado:* ${formatCOP(summary.totalGastado)} (${summary.numGastos} comprobantes)\n`;
+    text += `*Total gastado:* ${formatCOP(summary.totalGastado)} (${summary.numGastos} registros)\n`;
     if (summary.numFacturas > 0) {
       text += `🧾 *Facturas:* ${formatCOP(summary.totalFacturas)} (${summary.numFacturas})\n`;
     }
     if (summary.numTransferencias > 0) {
       text += `🏦 *Transferencias:* ${formatCOP(summary.totalTransferencias)} (${summary.numTransferencias})\n`;
     }
+    if (summary.numManuales > 0) {
+      text += `✍️ *Gastos manuales (sin soporte):* ${formatCOP(summary.totalManuales)} (${summary.numManuales})\n`;
+    }
     text += `\n*Desglose por categorías:*\n`;
     summary.categorias.forEach((cat) => {
       const emoji = categoryEmojis[cat.categoria] || '📌';
       text += `${emoji} ${cat.categoria}: ${formatCOP(cat.total)} (${cat.porcentaje}%)\n`;
     });
-    text += `\n📄 *Responde "DETALLE" para ver la lista de comprobantes o "EXCEL" para exportar.*`;
+    text += `\n📄 Generado con none-system.`;
 
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -136,7 +139,7 @@ export const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-surface-border/50 text-xs">
+          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-surface-border/50 text-xs">
             <div className="flex flex-col">
               <span className="text-[10px] text-slate-400">Facturas ({summary.numFacturas})</span>
               <span className="font-mono text-slate-200 font-semibold text-xs truncate">
@@ -147,6 +150,12 @@ export const MonthlySummaryCard: React.FC<MonthlySummaryCardProps> = ({
               <span className="text-[10px] text-slate-400">Transferencias ({summary.numTransferencias})</span>
               <span className="font-mono text-slate-200 font-semibold text-xs truncate">
                 {formatCOP(summary.totalTransferencias)}
+              </span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] text-slate-400">Manuales ({summary.numManuales ?? 0})</span>
+              <span className="font-mono text-slate-200 font-semibold text-xs truncate">
+                {formatCOP(summary.totalManuales ?? 0)}
               </span>
             </div>
           </div>

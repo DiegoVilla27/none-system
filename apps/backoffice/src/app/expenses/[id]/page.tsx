@@ -7,7 +7,7 @@ import { SideBySideViewer } from '@/components/organisms/SideBySideViewer/SideBy
 import { Heading, Text } from '@/components/atoms/Typography/Typography';
 import { Button } from '@/components/atoms/Button/Button';
 import { Badge } from '@/components/atoms/Badge/Badge';
-import { Expense } from '@/types/expense.types';
+import { Expense, DOCUMENT_TYPE_LABELS } from '@/types/expense.types';
 import { useExpense, useUpdateExpense, useDeleteExpense } from '@/hooks/useExpenses';
 import { ArrowLeft, Trash2, AlertCircle, RefreshCw, FileText } from 'lucide-react';
 
@@ -72,7 +72,7 @@ export default function ExpenseDetailPage() {
           {expense && (
             <div className="flex items-center gap-3">
               <Badge variant={expense.tipoDocumento}>
-                {expense.tipoDocumento === 'transferencia' ? 'Transferencia Bancaria' : 'Factura Comercial'}
+                {DOCUMENT_TYPE_LABELS[expense.tipoDocumento]}
               </Badge>
 
               <Button

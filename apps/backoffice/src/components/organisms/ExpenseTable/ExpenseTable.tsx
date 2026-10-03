@@ -226,6 +226,19 @@ export const ExpenseTable: React.FC<ExpenseTableProps> = ({
             >
               Transferencias
             </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterType('manual')}
+              className={cn(
+                'px-3 py-1.5 rounded-lg text-xs font-medium border border-transparent transition-colors duration-150 select-none',
+                filterType === 'manual'
+                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-surface-elevated/40'
+              )}
+            >
+              Manuales
+            </button>
           </div>
 
           {/* Input de Búsqueda */}
@@ -421,7 +434,7 @@ export const ExpenseTable: React.FC<ExpenseTableProps> = ({
                 >
                   <td className="px-4 py-3 whitespace-nowrap">
                     <Badge variant={exp.tipoDocumento}>
-                      {exp.tipoDocumento === 'transferencia' ? 'Transf.' : 'Factura'}
+                      {exp.tipoDocumento === 'transferencia' ? 'Transf.' : exp.tipoDocumento === 'manual' ? 'Manual' : 'Factura'}
                     </Badge>
                   </td>
 

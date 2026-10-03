@@ -6,10 +6,11 @@ import {
   getExpenseById,
   getMonthlySummary,
   scanExpense,
+  createManualExpense,
   updateExpense,
   deleteExpense,
 } from '@/lib/api';
-import { DocumentType, Expense } from '@/types/expense.types';
+import { DocumentType, ScanDocumentType, Expense, ManualExpenseInput } from '@/types/expense.types';
 
 export const EXPENSES_QUERY_KEY = ['expenses'] as const;
 export const MONTHLY_SUMMARY_QUERY_KEY = ['monthly-summary'] as const;
@@ -54,8 +55,24 @@ export function useMonthlySummary(year?: number, month?: number) {
  */
 export function useScanExpense() {
   return useMutation({
-    mutationFn: ({ file, tipo }: { file: File; tipo: DocumentType }) =>
+    mutationFn: ({ file, tipo }: { file: File; tipo: ScanDocumentType }) =>
       scanExpense(file, tipo),
+  });
+}
+
+/**
+ * Hook de mutación para registrar un gasto manual (sin recibo).
+ */
+export function useCreateManualExpense() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: ManualExpenseInput) => createManualExpense(input),
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: EXPENSES_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: MONTHLY_SUMMARY_QUERY_KEY });
+      queryClient.setQueryData(['expense', created.id], created);
+    },
   });
 }
 

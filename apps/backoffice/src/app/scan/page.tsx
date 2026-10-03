@@ -7,8 +7,8 @@ import { FileUploader } from '@/components/molecules/FileUploader/FileUploader';
 import { SideBySideViewer } from '@/components/organisms/SideBySideViewer/SideBySideViewer';
 import { Heading, Text } from '@/components/atoms/Typography/Typography';
 import { Button } from '@/components/atoms/Button/Button';
-import { Expense, DocumentType } from '@/types/expense.types';
-import { scanExpense, updateExpense } from '@/lib/api';
+import { Expense, ScanDocumentType } from '@/types/expense.types';
+import { scanExpenseWithWarning, updateExpense } from '@/lib/api';
 import { Sparkles, RefreshCw, AlertCircle, RotateCcw } from 'lucide-react';
 
 export default function ScanPage() {
@@ -18,9 +18,10 @@ export default function ScanPage() {
   const [scanProgress, setScanProgress] = useState(0);
   const [scanStatus, setScanStatus] = useState('Digitalizando comprobante...');
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
   // Guardar referencia para permitir reintentos con un clic
-  const lastAttemptRef = useRef<{ file: File; type: DocumentType } | null>(null);
+  const lastAttemptRef = useRef<{ file: File; type: ScanDocumentType } | null>(null);
 
   const startProgressSimulation = () => {
     setScanProgress(15);
@@ -45,7 +46,7 @@ export default function ScanPage() {
     return () => timeouts.forEach(clearTimeout);
   };
 
-  const handleFileSelect = async (file: File, type: DocumentType) => {
+  const handleFileSelect = async (file: File, type: ScanDocumentType) => {
     lastAttemptRef.current = { file, type };
     setError(null);
     setIsScanning(true);
@@ -53,7 +54,9 @@ export default function ScanPage() {
     const cleanupProgress = startProgressSimulation();
 
     try {
-      const scanned = await scanExpense(file, type);
+      setWarning(null);
+      const { expense: scanned, warning: scanWarning } = await scanExpenseWithWarning(file, type);
+      setWarning(scanWarning?.message ?? null);
       cleanupProgress();
       setScanProgress(100);
       setScanStatus('¡Comprobante leído con éxito!');
@@ -133,6 +136,13 @@ export default function ScanPage() {
         </div>
 
         {/* Mensaje de Error Amigable */}
+        {warning && (
+          <div className="p-4 rounded-xl bg-surface-card border border-amber-500/40 flex items-start gap-3 text-xs text-amber-200">
+            <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+            <span>{warning}</span>
+          </div>
+        )}
+
         {error && (
           <div className="p-4 rounded-xl bg-surface-card border border-rose-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
             <div className="flex items-start sm:items-center gap-3 text-rose-300">

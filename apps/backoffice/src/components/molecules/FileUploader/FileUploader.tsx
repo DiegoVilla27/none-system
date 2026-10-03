@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { cn } from '@/lib/utils';
-import { DocumentType } from '@/types/expense.types';
+import { ScanDocumentType as DocumentType } from '@/types/expense.types';
 import { validateAndCompressFile } from '@/lib/image-compressor';
 import {
   UploadCloud,

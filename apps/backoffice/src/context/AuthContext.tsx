@@ -1,46 +1,38 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { User, SubscriptionInfo } from '@/types/auth.types';
-import { loginUser, registerUser, getCurrentUser } from '@/lib/api';
+import { User, SubscriptionInfo, PendingRegistration, RegisterInput, AuthSession } from '@/types/auth.types';
+import {
+  loginUser,
+  logoutUser,
+  registerUser,
+  confirmRegistration as confirmRegistrationApi,
+  getCurrentUser,
+} from '@/lib/api';
 
 interface AuthContextType {
   user: User | null;
   subscription: SubscriptionInfo | null;
-  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, pass: string) => Promise<void>;
-  register: (data: {
-    email: string;
-    password: string;
-    name: string;
-    phoneNumber: string;
-    habeasDataAccepted: true;
-  }) => Promise<{ verificationToken?: string }>;
-  logout: () => void;
+  /** Paso 1: envía el código de verificación por WhatsApp. No inicia sesión. */
+  register: (data: RegisterInput) => Promise<PendingRegistration>;
+  /** Paso 2: confirma el código, crea la cuenta e inicia sesión. */
+  confirmRegistration: (verificationId: string, code: string) => Promise<{ devEmailVerificationToken?: string }>;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function setAuthCookie(token: string) {
-  if (typeof document !== 'undefined') {
-    const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
-    document.cookie = `none_auth_token=${token}; path=/; max-age=604800; SameSite=Lax${isSecure ? '; Secure' : ''}`;
-  }
-}
-
-function clearAuthCookie() {
-  if (typeof document !== 'undefined') {
-    document.cookie = 'none_auth_token=; path=/; max-age=0; SameSite=Lax';
-  }
-}
-
+/**
+ * La sesión vive en una cookie HttpOnly que emite el backend: el frontend nunca ve ni guarda el token.
+ * El estado de autenticación se obtiene consultando /auth/me.
+ */
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const refreshUser = useCallback(async () => {
@@ -48,76 +40,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await getCurrentUser();
       setUser(data.user);
       setSubscription(data.subscription);
-    } catch (err) {
-      console.warn('Error al verificar sesión activa:', err);
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('none_auth_token');
-        clearAuthCookie();
-      }
+    } catch {
       setUser(null);
       setSubscription(null);
-      setToken(null);
     }
   }, []);
 
   useEffect(() => {
-    const savedToken = typeof window !== 'undefined' ? localStorage.getItem('none_auth_token') : null;
-    if (savedToken) {
-      setToken(savedToken);
-      setAuthCookie(savedToken);
-      refreshUser().finally(() => setIsLoading(false));
-    } else {
-      clearAuthCookie();
-      setIsLoading(false);
-    }
+    refreshUser().finally(() => setIsLoading(false));
   }, [refreshUser]);
+
+  const startSession = async (session: Omit<AuthSession, 'devEmailVerificationToken'>) => {
+    setUser(session.user);
+    await refreshUser();
+  };
 
   const login = async (email: string, pass: string) => {
     setIsLoading(true);
     try {
-      const session = await loginUser(email, pass);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('none_auth_token', session.token);
-        setAuthCookie(session.token);
-      }
-      setToken(session.token);
-      setUser(session.user);
-      await refreshUser();
+      await startSession(await loginUser(email, pass));
     } finally {
       setIsLoading(false);
     }
   };
 
-  const register = async (data: {
-    email: string;
-    password: string;
-    name: string;
-    phoneNumber: string;
-    habeasDataAccepted: true;
-  }) => {
+  const register = async (data: RegisterInput) => registerUser(data);
+
+  const confirmRegistration = async (verificationId: string, code: string) => {
     setIsLoading(true);
     try {
-      const session = await registerUser(data);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('none_auth_token', session.token);
-        setAuthCookie(session.token);
-      }
-      setToken(session.token);
-      setUser(session.user);
-      await refreshUser();
-      return { verificationToken: session.verificationToken };
+      const session = await confirmRegistrationApi(verificationId, code);
+      await startSession(session);
+      return { devEmailVerificationToken: session.devEmailVerificationToken };
     } finally {
       setIsLoading(false);
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await logoutUser();
+    setUser(null);
+    setSubscription(null);
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('none_auth_token');
-      clearAuthCookie();
-      setToken(null);
-      setUser(null);
-      setSubscription(null);
       window.location.href = '/login';
     }
   };
@@ -127,11 +91,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         subscription,
-        token,
         isAuthenticated: !!user,
         isLoading,
         login,
         register,
+        confirmRegistration,
         logout,
         refreshUser,
       }}
@@ -144,13 +108,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (!context) {
-    // Fallback elegante para entornos de prueba unitaria aislados sin AuthProvider
+    // Fallback para pruebas unitarias aisladas sin AuthProvider
     return {
       user: {
         id: 'usr-admin-demo-colombia',
         name: 'Diego Villa (Admin)',
         email: 'admin@none-system.com',
         phoneNumber: '573001234567',
+        phoneVerified: true,
         role: 'admin',
         emailVerified: true,
         habeasDataConsent: {
@@ -169,12 +134,12 @@ export const useAuth = (): AuthContextType => {
         billingCycleMonth: '2026-10',
         status: 'activo',
       },
-      token: 'mock-test-jwt-token',
       isAuthenticated: true,
       isLoading: false,
       login: async () => {},
-      register: async () => ({}),
-      logout: () => {},
+      register: async () => ({ verificationId: 'mock', phoneHint: '****4567', expiresAt: new Date().toISOString() }),
+      confirmRegistration: async () => ({}),
+      logout: async () => {},
       refreshUser: async () => {},
     };
   }

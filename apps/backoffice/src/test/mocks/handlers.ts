@@ -61,6 +61,8 @@ export const INITIAL_TEST_SUMMARY: MonthlySummary = {
   totalTransferencias: 50000,
   numFacturas: 1,
   numTransferencias: 1,
+  totalManuales: 0,
+  numManuales: 0,
   numGastos: 2,
   categorias: [
     {

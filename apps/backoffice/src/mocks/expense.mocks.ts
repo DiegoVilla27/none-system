@@ -131,6 +131,8 @@ export const MOCK_MONTHLY_SUMMARY: MonthlySummary = {
   totalTransferencias: 50000,
   numFacturas: 3,
   numTransferencias: 1,
+  totalManuales: 0,
+  numManuales: 0,
   numGastos: 4,
   categorias: [
     {
