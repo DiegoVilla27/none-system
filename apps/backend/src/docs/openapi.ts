@@ -14,12 +14,15 @@ Procesamiento automatizado de **Facturas Electrónicas Comerciales** y **Comprob
 - 🧾 **Modo Factura**: Extracción especializada de facturas de venta (Alkomprar, Éxito, D1, etc.), NIT, desglose de IVA (19%/5%) y artículos.
 - 🏦 **Modo Transferencia / Consignación**: Extracción especializada de comprobantes bancarios (Bancolombia, Wompi, Nequi, Daviplata, Efecty), convenios/beneficiarios y referencias de recaudo.
 - ⚡ **Rápido y Económico**: Procesamiento con \`gemini-3.5-flash\` en ~1.2 segundos sin errores de congestión.
+- ✍️ **Gastos manuales**: registro de gastos sin soporte (ej: "arroz 5000"), nunca deducibles ante la DIAN.
 - 📱 **Resúmenes para WhatsApp**: Generación mensual de mensajes con barras de progreso Unicode y formato de moneda COP ($).
+- 🔐 **Seguridad**: todas las rutas de datos exigen \`Authorization: Bearer <token>\` y cada usuario solo accede a lo suyo.
     `,
     contact: {
       name: 'Equipo none-system Colombia',
     },
   },
+  security: [{ bearerAuth: [] }],
   servers: [
     {
       url: 'http://localhost:4000',
@@ -36,6 +39,14 @@ Procesamiento automatizado de **Facturas Electrónicas Comerciales** y **Comprob
       description: 'Cálculo de métricas mensuales y formato para mensajes de WhatsApp en Pesos Colombianos (COP).',
     },
     {
+      name: 'Autenticación',
+      description: 'Registro con verificación del número por WhatsApp (OTP), sesión, recuperación de contraseña y supresión de cuenta.',
+    },
+    {
+      name: 'Suscripciones',
+      description: 'Planes, cupo del usuario y checkout (modo de prueba hasta integrar una pasarela certificada).',
+    },
+    {
       name: 'Sistema',
       description: 'Monitoreo de estado y healthcheck.',
     },
@@ -48,6 +59,7 @@ Procesamiento automatizado de **Facturas Electrónicas Comerciales** y **Comprob
     '/health': {
       get: {
         tags: ['Sistema'],
+        security: [],
         summary: 'Verificar estado del servicio',
         description: 'Retorna el estado operativo actual de la API, versión y timestamp.',
         responses: {
@@ -157,7 +169,7 @@ El usuario o frontend puede enviar el campo **\`tipo\`**:
             required: false,
             schema: {
               type: 'string',
-              enum: ['factura', 'transferencia'],
+              enum: ['factura', 'transferencia', 'manual'],
             },
           },
           {
@@ -445,6 +457,7 @@ El usuario o frontend puede enviar el campo **\`tipo\`**:
     '/api/v1/whatsapp/webhook': {
       get: {
         tags: ['WhatsApp Cloud API'],
+        security: [],
         summary: 'Verificación del Webhook de Meta (Handshake)',
         description: 'Endpoint consumido por Meta para verificar la suscripción del Webhook usando el Verify Token.',
         parameters: [
@@ -483,6 +496,7 @@ El usuario o frontend puede enviar el campo **\`tipo\`**:
       },
       post: {
         tags: ['WhatsApp Cloud API'],
+        security: [],
         summary: 'Recepción de eventos de WhatsApp (Fotos, PDFs, Mensajes)',
         description: 'Recibe eventos en tiempo real de Meta cuando un usuario envía un comprobante o mensaje por chat.',
         requestBody: {
@@ -516,8 +530,130 @@ El usuario o frontend puede enviar el campo **\`tipo\`**:
         },
       },
     },
+    '/api/v1/expenses/manual': {
+      post: {
+        tags: ['Gastos & OCR'],
+        summary: 'Registrar un gasto manual (sin soporte)',
+        description: 'Gasto escrito a mano (ej: Arroz $5.000). No consume cupo y nunca es deducible ante la DIAN.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['descripcion', 'total'],
+                properties: {
+                  descripcion: { type: 'string', example: 'Arroz' },
+                  total: { type: 'number', example: 5000 },
+                  fecha: { type: 'string', example: '2026-10-03', description: 'YYYY-MM-DD, por defecto hoy (Colombia). No puede ser futura.' },
+                  categoria: { type: 'string', enum: [...EXPENSE_CATEGORIES] },
+                  comercio: { type: 'string', nullable: true, example: 'Tienda de la esquina' },
+                  cantidad: { type: 'number', nullable: true, example: 1 },
+                  notas: { type: 'string', nullable: true },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '201': { description: 'Gasto registrado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Expense' } } } },
+          '400': { description: 'Datos inválidos' },
+          '401': { description: 'Sin sesión' },
+        },
+      },
+    },
+    '/uploads/{filename}': {
+      get: {
+        tags: ['Gastos & OCR'],
+        summary: 'Descargar el soporte (imagen/PDF) de un gasto propio',
+        description: 'Acepta Bearer token o la cookie de sesión none_auth_token. Responde 404 si el archivo no es del usuario.',
+        parameters: [{ name: 'filename', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Archivo descifrado' }, '401': { description: 'Sin sesión' }, '404': { description: 'No encontrado' } },
+      },
+    },
+    '/api/v1/auth/register': {
+      post: {
+        tags: ['Autenticación'],
+        security: [],
+        summary: 'Paso 1: solicitar registro (envía código por WhatsApp)',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['email', 'password', 'name', 'phoneNumber', 'habeasDataAccepted', 'termsAccepted'],
+                properties: {
+                  email: { type: 'string' },
+                  password: { type: 'string', description: 'Mínimo 8 caracteres con letras y números' },
+                  name: { type: 'string' },
+                  phoneNumber: { type: 'string', example: '300 123 4567' },
+                  habeasDataAccepted: { type: 'boolean', enum: [true] },
+                  termsAccepted: { type: 'boolean', enum: [true] },
+                },
+              },
+            },
+          },
+        },
+        responses: { '202': { description: 'Código enviado. Devuelve verificationId (y devCode fuera de producción).' } },
+      },
+    },
+    '/api/v1/auth/register/confirm': {
+      post: {
+        tags: ['Autenticación'],
+        security: [],
+        summary: 'Paso 2: confirmar el código y crear la cuenta',
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', properties: { verificationId: { type: 'string' }, code: { type: 'string', example: '123456' } } } } },
+        },
+        responses: { '201': { description: 'Cuenta creada; devuelve token y usuario' }, '400': { description: 'Código inválido o expirado' } },
+      },
+    },
+    '/api/v1/auth/login': {
+      post: { tags: ['Autenticación'], security: [], summary: 'Iniciar sesión', responses: { '200': { description: 'Token y usuario' }, '401': { description: 'Credenciales incorrectas' } } },
+    },
+    '/api/v1/auth/forgot-password': {
+      post: { tags: ['Autenticación'], security: [], summary: 'Enviar código de recuperación al WhatsApp verificado', responses: { '200': { description: 'Respuesta genérica (no revela si el correo existe)' } } },
+    },
+    '/api/v1/auth/reset-password': {
+      post: { tags: ['Autenticación'], security: [], summary: 'Restablecer contraseña con email + código', responses: { '200': { description: 'Contraseña actualizada' } } },
+    },
+    '/api/v1/auth/phone/send-code': {
+      post: { tags: ['Autenticación'], summary: 'Enviar código para verificar el número (cuentas antiguas)', responses: { '200': { description: 'Código enviado' } } },
+    },
+    '/api/v1/auth/phone/verify': {
+      post: { tags: ['Autenticación'], summary: 'Confirmar el número con el código', responses: { '200': { description: 'Número verificado' } } },
+    },
+    '/api/v1/auth/me': {
+      get: { tags: ['Autenticación'], summary: 'Perfil y suscripción del usuario', responses: { '200': { description: 'Perfil' } } },
+      delete: {
+        tags: ['Autenticación'],
+        summary: 'Eliminar la cuenta y todos sus datos (derecho de supresión)',
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { password: { type: 'string' } } } } } },
+        responses: { '200': { description: 'Cuenta eliminada' }, '400': { description: 'Contraseña incorrecta' } },
+      },
+    },
+    '/api/v1/subscriptions/plans': {
+      get: { tags: ['Suscripciones'], security: [], summary: 'Planes y precios en COP', responses: { '200': { description: 'Planes' } } },
+    },
+    '/api/v1/subscriptions/me': {
+      get: { tags: ['Suscripciones'], summary: 'Cupo y plan del usuario autenticado', responses: { '200': { description: 'Suscripción' } } },
+    },
+    '/api/v1/subscriptions/checkout': {
+      post: {
+        tags: ['Suscripciones'],
+        summary: 'Activar un plan (modo de prueba, sin cobro real)',
+        description: 'Deshabilitado en producción hasta integrar una pasarela de pagos certificada. Nunca recibe datos de tarjeta.',
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { plan: { type: 'string', enum: ['basico', 'pro', 'empresarial'] }, paymentMethod: { type: 'string', enum: ['pse', 'card', 'nequi'] } } } } } },
+        responses: { '200': { description: 'Plan activado (simulado)' }, '503': { description: 'Pagos en línea no habilitados' } },
+      },
+    },
   },
   components: {
+    securitySchemes: {
+      bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+    },
     schemas: {
       ExpenseItem: {
         type: 'object',
@@ -536,7 +672,7 @@ El usuario o frontend puede enviar el campo **\`tipo\`**:
           userId: { type: 'string', nullable: true, example: 'user-123' },
           tipoDocumento: {
             type: 'string',
-            enum: ['factura', 'transferencia'],
+            enum: ['factura', 'transferencia', 'manual'],
             example: 'transferencia',
           },
           comercio: {
@@ -582,7 +718,7 @@ El usuario o frontend puede enviar el campo **\`tipo\`**:
             example: 'alta',
           },
           notas: { type: 'string', nullable: true },
-          imageUrl: { type: 'string', example: '/uploads/1790956849624-comprobante.png' },
+          imageUrl: { type: 'string', nullable: true, example: '/uploads/1790956849624-6f1c2a3e.png', description: 'Soporte cifrado en reposo; solo lo descarga su dueño. null en gastos manuales.' },
           imageOriginalName: { type: 'string', example: 'comprobante-wompi.png' },
           estado: {
             type: 'string',
@@ -597,7 +733,7 @@ El usuario o frontend puede enviar el campo **\`tipo\`**:
       UpdateExpenseDto: {
         type: 'object',
         properties: {
-          tipoDocumento: { type: 'string', enum: ['factura', 'transferencia'] },
+          tipoDocumento: { type: 'string', enum: ['factura', 'transferencia', 'manual'] },
           comercio: { type: 'string', example: 'Funeraria San Vicente S.A.' },
           entidadFinanciera: { type: 'string', nullable: true, example: 'Bancolombia' },
           cifNif: { type: 'string', nullable: true, example: '890900943-1' },

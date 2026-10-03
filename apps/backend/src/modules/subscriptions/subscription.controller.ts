@@ -1,14 +1,29 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response } from 'express';
+import { z } from 'zod';
 import { SubscriptionService } from './subscription.service.js';
-import { PLAN_CONFIGS, SubscriptionPlan } from './subscription.entity.js';
+import { PLAN_CONFIGS, PAID_PLANS, SubscriptionPlan } from './subscription.entity.js';
+import { IUserRepository } from '../auth/repositories/user.repository.interface.js';
+import { PaymentService } from '../payments/payment.service.js';
+import { asyncHandler } from '../../core/middlewares/async-handler.js';
+import { BadRequestError, NotFoundError, UnauthorizedError } from '../../core/errors/index.js';
+import { normalizePhone } from '../../core/security/privacy.js';
+
+const checkoutSchema = z.object({
+  plan: z.enum(PAID_PLANS as [Exclude<SubscriptionPlan, 'gratuito'>, ...Exclude<SubscriptionPlan, 'gratuito'>[]]),
+});
 
 export class SubscriptionController {
-  constructor(private readonly subscriptionService: SubscriptionService) {}
+  constructor(
+    private readonly subscriptionService: SubscriptionService,
+    private readonly userRepository: IUserRepository,
+    private readonly paymentService: PaymentService
+  ) {}
 
   /**
    * Obtiene la lista de planes disponibles y sus precios en COP.
    */
-  getPlans = async (_req: Request, res: Response): Promise<void> => {
+  getPlans = asyncHandler(async (_req: Request, res: Response) => {
+    const mode = this.paymentService.mode;
     res.json({
       status: 'success',
       data: {
@@ -17,106 +32,52 @@ export class SubscriptionController {
           ...config,
         })),
         currency: 'COP',
+        paymentMode: mode,
+        onlinePaymentsEnabled: mode !== 'disabled',
+        simulatedPayments: mode === 'simulated',
       },
     });
-  };
+  });
 
   /**
-   * Consulta el estado de suscripción y saldo de cupos de un teléfono.
+   * Suscripción del usuario autenticado.
    */
-  getSubscriptionByPhone = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const rawPhone = Array.isArray(req.params.phoneNumber) ? req.params.phoneNumber[0] : req.params.phoneNumber;
-      const phoneNumber = String(rawPhone || '').replace(/\D/g, '');
-      if (!phoneNumber) {
-        res.status(400).json({ status: 'error', message: 'Número de teléfono inválido' });
-        return;
-      }
-
-      const sub = await this.subscriptionService.getOrCreateSubscription(phoneNumber);
-      res.json({
-        status: 'success',
-        data: sub,
-      });
-    } catch (error) {
-      next(error);
-    }
-  };
+  getMine = asyncHandler(async (req: Request, res: Response) => {
+    const user = await this.userRepository.findById(req.user!.sub);
+    if (!user) throw new UnauthorizedError('Tu sesión ya no es válida');
+    const sub = await this.subscriptionService.getOrCreateSubscription(user.phoneNumber, user.name, user.id);
+    res.json({ status: 'success', data: sub });
+  });
 
   /**
-   * Simula o procesa la pasarela de pago (PSE, Wompi, Nequi, Tarjeta)
-   * y activa el plan para el número de teléfono.
+   * Consulta administrativa del estado de suscripción de un teléfono.
    */
-  processCheckout = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const {
-        phoneNumber,
-        plan,
-        paymentMethod = 'pse',
-        customerName,
-        customerEmail,
-        customerDocNumber,
-      } = req.body;
-
-      if (!phoneNumber || !plan) {
-        res.status(400).json({
-          status: 'error',
-          message: 'Se requieren el número de teléfono y el plan seleccionado',
-        });
-        return;
-      }
-
-      const validPlan = plan as SubscriptionPlan;
-      if (!PLAN_CONFIGS[validPlan]) {
-        res.status(400).json({
-          status: 'error',
-          message: `Plan inválido. Opciones: ${Object.keys(PLAN_CONFIGS).join(', ')}`,
-        });
-        return;
-      }
-
-      const cleanPhone = phoneNumber.replace(/\D/g, '');
-      const planConfig = PLAN_CONFIGS[validPlan];
-
-      // Referencia de pago colombiana única (estilo Wompi/Bold)
-      const reference = `NONE-${validPlan.toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
-
-      // Actualizar plan del usuario en el servicio y registrar la transacción en DB
-      const updatedSub = await this.subscriptionService.upgradePlan(cleanPhone, validPlan, {
-        reference,
-        amountCOP: planConfig.priceCOP,
-        paymentMethod,
-        customerName: customerName || undefined,
-        customerEmail: customerEmail || undefined,
-        customerDocNumber: customerDocNumber || undefined,
-      });
-
-      if (customerName) {
-        await this.subscriptionService.getOrCreateSubscription(cleanPhone, customerName);
-      }
-
-      res.status(200).json({
-        status: 'success',
-        message: `${planConfig.name} activado exitosamente para el número +${cleanPhone}`,
-        data: {
-          transaction: {
-            reference,
-            amountCOP: planConfig.priceCOP,
-            paymentMethod,
-            status: 'APROBADA',
-            customer: {
-              name: customerName || 'Usuario None System',
-              email: customerEmail || 'usuario@none-system.com',
-              phone: cleanPhone,
-              docNumber: customerDocNumber || 'N/A',
-            },
-            timestamp: new Date().toISOString(),
-          },
-          subscription: updatedSub,
-        },
-      });
-    } catch (error) {
-      next(error);
+  getSubscriptionByPhone = asyncHandler(async (req: Request, res: Response) => {
+    const phoneNumber = normalizePhone(String(req.params.phoneNumber || ''));
+    if (!phoneNumber) {
+      throw new BadRequestError('Número de teléfono inválido');
     }
-  };
+
+    const sub = await this.subscriptionService.findByPhone(phoneNumber);
+    if (!sub) throw new NotFoundError('No existe una suscripción para ese número');
+    res.json({ status: 'success', data: sub });
+  });
+
+  /**
+   * Inicia la compra de un plan para el usuario autenticado.
+   * Con Wompi devuelve la URL del checkout; en modo simulado (desarrollo) activa el plan sin cobro.
+   */
+  processCheckout = asyncHandler(async (req: Request, res: Response) => {
+    const { plan } = checkoutSchema.parse(req.body);
+    const result = await this.paymentService.startCheckout(req.user!.sub, plan);
+
+    res.status(200).json({
+      status: 'success',
+      message:
+        result.mode === 'wompi'
+          ? 'Te llevaremos a Wompi para completar el pago'
+          : `${PLAN_CONFIGS[plan].name} activado en modo de prueba (sin cobro real)`,
+      data: { ...result, simulated: result.mode === 'simulated' },
+    });
+  });
 }

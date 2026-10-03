@@ -27,7 +27,7 @@ export async function checkDatabaseConnection(): Promise<boolean> {
     await client.$queryRawUnsafe('SELECT 1');
     isConnected = true;
     return true;
-  } catch (err: any) {
+  } catch {
     isConnected = false;
     return false;
   }

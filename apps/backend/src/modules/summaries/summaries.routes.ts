@@ -1,8 +1,11 @@
 import { Router } from 'express';
 import { SummaryController } from './controllers/summary.controller.js';
+import { AuthMiddleware } from '../auth/middlewares/auth.middleware.js';
 
-export const createSummaryRouter = (controller: SummaryController): Router => {
+export const createSummaryRouter = (controller: SummaryController, auth: AuthMiddleware): Router => {
   const router = Router();
+
+  router.use(auth.requireAuth);
 
   // GET /api/v1/summaries/monthly
   router.get('/monthly', controller.getMonthly);

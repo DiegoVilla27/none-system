@@ -18,10 +18,17 @@ export interface WhatsAppMessage {
   from: string; // Número de teléfono del remitente (ej. 573001234567)
   id: string;
   timestamp: string;
-  type: 'text' | 'image' | 'document' | 'audio' | 'voice' | 'sticker' | 'unknown';
+  type: 'text' | 'image' | 'document' | 'audio' | 'voice' | 'video' | 'sticker' | 'location' | 'contacts' | 'interactive' | 'button' | 'reaction' | 'unknown' | 'unsupported' | 'request_welcome';
   text?: WhatsAppTextMessage;
   image?: WhatsAppMediaObject;
   document?: WhatsAppMediaObject;
+  audio?: WhatsAppMediaObject;
+  /** Respuesta a un botón o lista interactiva enviada por el bot. */
+  interactive?: {
+    type: 'button_reply' | 'list_reply';
+    button_reply?: { id: string; title: string };
+    list_reply?: { id: string; title: string; description?: string };
+  };
 }
 
 export interface WhatsAppContact {

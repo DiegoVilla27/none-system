@@ -1,6 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { IStorageService, StoredFile } from './storage.interface.js';
+import { randomUUID } from 'node:crypto';
+import { IStorageService, StoredFile, FileToStore, UPLOADS_URL_PREFIX, isSafeStoredFilename } from './storage.interface.js';
+import { CryptoService } from '../security/crypto.service.js';
+import { NotFoundError } from '../errors/index.js';
 import { env } from '../../config/env.js';
 
 export class LocalStorageService implements IStorageService {
@@ -13,52 +16,62 @@ export class LocalStorageService implements IStorageService {
 
   private async ensureUploadDir(): Promise<void> {
     try {
-      await fs.mkdir(this.uploadDir, { recursive: true });
+      await fs.mkdir(this.uploadDir, { recursive: true, mode: 0o700 });
     } catch (err) {
       console.error('Failed to create upload directory:', err);
     }
   }
 
-  async save(file: Express.Multer.File): Promise<StoredFile> {
-    await this.ensureUploadDir();
-    const timestamp = Date.now();
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const filename = `${timestamp}-${safeName}`;
-    const destinationPath = path.join(this.uploadDir, filename);
-
-    if (file.buffer) {
-      await fs.writeFile(destinationPath, file.buffer);
-    } else if (file.path) {
-      await fs.copyFile(file.path, destinationPath);
-    } else {
-      throw new Error('File has neither buffer nor path');
+  private resolveSafePath(filename: string): string {
+    if (!isSafeStoredFilename(filename)) {
+      throw new NotFoundError('Archivo no encontrado');
     }
+    const filePath = path.join(this.uploadDir, filename);
+    if (path.dirname(filePath) !== this.uploadDir) {
+      throw new NotFoundError('Archivo no encontrado');
+    }
+    return filePath;
+  }
+
+  async save(file: FileToStore): Promise<StoredFile> {
+    await this.ensureUploadDir();
+    // Nombre aleatorio: no revela el nombre original ni es adivinable
+    const filename = `${Date.now()}-${randomUUID()}.${file.extension}`;
+    const destinationPath = this.resolveSafePath(filename);
+
+    await fs.writeFile(destinationPath, CryptoService.encryptBuffer(file.buffer), { mode: 0o600 });
 
     return {
       filename,
-      originalName: file.originalname,
-      mimeType: file.mimetype,
-      size: file.size,
-      path: destinationPath,
-      url: `/uploads/${filename}`,
+      originalName: file.originalName.slice(0, 200),
+      mimeType: file.mimeType,
+      size: file.buffer.length,
+      url: this.getUrl(filename),
     };
   }
 
   async get(filename: string): Promise<Buffer> {
-    const filePath = path.join(this.uploadDir, filename);
-    return fs.readFile(filePath);
+    const filePath = this.resolveSafePath(filename);
+    let data: Buffer;
+    try {
+      data = await fs.readFile(filePath);
+    } catch {
+      throw new NotFoundError('Archivo no encontrado');
+    }
+    // Archivos legados (anteriores al cifrado) se devuelven tal cual
+    return CryptoService.isEncryptedBuffer(data) ? CryptoService.decryptBuffer(data) : data;
   }
 
   async delete(filename: string): Promise<void> {
-    const filePath = path.join(this.uploadDir, filename);
     try {
+      const filePath = this.resolveSafePath(filename);
       await fs.unlink(filePath);
     } catch (err) {
-      console.warn(`File ${filename} could not be deleted or does not exist:`, err);
+      console.warn(`File ${filename} could not be deleted or does not exist:`, (err as Error).message);
     }
   }
 
   getUrl(filename: string): string {
-    return `/uploads/${filename}`;
+    return `${UPLOADS_URL_PREFIX}${filename}`;
   }
 }

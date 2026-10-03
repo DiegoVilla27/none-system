@@ -1,5 +1,5 @@
 import { createApp } from './app.js';
-import { env } from './config/env.js';
+import { env, isProduction } from './config/env.js';
 import { checkDatabaseConnection, disconnectPrisma } from './core/database/prisma.service.js';
 
 async function bootstrap() {
@@ -20,13 +20,18 @@ async function bootstrap() {
     }
   }
 
+  if (isProduction && !isDbReady) {
+    // Nunca operar en producción sin base de datos: se perderían datos y cupos
+    throw new Error('No fue posible conectar con PostgreSQL. El servidor no inicia sin base de datos en producción.');
+  }
+
   const { app, isUsingPrisma } = createApp({ usePrisma: isDbReady });
 
   const server = app.listen(env.PORT, () => {
     console.log('====================================================');
     console.log(`🚀 Servidor ejecutándose en http://localhost:${env.PORT}`);
     console.log(`📡 Rutas API activas en http://localhost:${env.PORT}${env.API_PREFIX}`);
-    console.log(`📖 Documentación Swagger UI en http://localhost:${env.PORT}/docs`);
+    if (!isProduction) console.log(`📖 Documentación Swagger UI en http://localhost:${env.PORT}/docs`);
     console.log(`🔍 Healthcheck en http://localhost:${env.PORT}/health`);
     console.log(`🤖 OCR Gemini Model: ${env.GEMINI_MODEL}`);
     console.log(`📂 Almacenamiento: ${env.STORAGE_DRIVER} (${env.UPLOAD_DIR})`);

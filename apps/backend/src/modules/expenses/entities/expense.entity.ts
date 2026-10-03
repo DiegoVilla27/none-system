@@ -12,9 +12,17 @@ export const EXPENSE_CATEGORIES = [
 
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 
-export type DocumentType = 'factura' | 'transferencia';
+/**
+ * - factura: factura electrónica, tiquete POS o recibo de compra (con imagen/PDF).
+ * - transferencia: comprobante bancario o de pago (con imagen/PDF).
+ * - manual: gasto escrito a mano sin soporte documental. Nunca es deducible ante la DIAN.
+ */
+export const DOCUMENT_TYPES = ['factura', 'transferencia', 'manual'] as const;
+export type DocumentType = (typeof DOCUMENT_TYPES)[number];
+export type ScannedDocumentType = Exclude<DocumentType, 'manual'>;
 export type ExtractionConfidence = 'alta' | 'media' | 'baja';
 export type ExpenseStatus = 'borrador' | 'confirmado';
+export type ExpenseSource = 'web' | 'whatsapp';
 
 export interface ExpenseItem {
   descripcion: string;
@@ -26,7 +34,7 @@ export interface Expense {
   id: string;
   userId?: string;
   tipoDocumento: DocumentType;
-  comercio: string; // En factura: comercio/proveedor. En transferencia: beneficiario/convenio.
+  comercio: string; // En factura: comercio/proveedor. En transferencia: beneficiario/convenio. En manual: concepto.
   entidadFinanciera?: string | null; // Banco, Wompi, Nequi, Daviplata, Redeban, etc.
   cifNif?: string | null; // NIT o cédula en Colombia
   nit?: string | null; // NIT formateado con Dígito de Verificación (ej: 890.900.608-9)
@@ -44,11 +52,22 @@ export interface Expense {
   lineasArticulos: ExpenseItem[];
   confianzaExtraccion: ExtractionConfidence;
   notas?: string | null;
-  imageUrl: string;
-  imageOriginalName: string;
+  imageUrl?: string | null; // null en gastos manuales (sin soporte)
+  imageOriginalName?: string | null;
+  source?: ExpenseSource;
+  /** SHA-256 del archivo original (solo comprobantes con soporte). */
+  fileHash?: string | null;
   estado: ExpenseStatus;
   isDianCompliant?: boolean; // Valida requisitos formales de deducción DIAN (Art. 771-2 E.T.)
-  encryptedAtRest?: boolean; // Constancia de cifrado bancario AES-256 (Habeas Data Ley 1581)
+  encryptedAtRest?: boolean; // El soporte (imagen/PDF) está cifrado con AES-256-GCM
   createdAt: string;
   updatedAt: string;
 }
+
+/** Usuario que ejecuta una operación sobre gastos. */
+export interface Actor {
+  userId: string;
+  role: string;
+}
+
+export const isAdmin = (actor: Actor): boolean => actor.role === 'admin';
